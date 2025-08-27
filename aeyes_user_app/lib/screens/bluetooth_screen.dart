@@ -112,7 +112,11 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/',
+                (route) => false,
+              ),
             ),
           ],
         ),
@@ -122,7 +126,10 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
             children: [
               Row(
                 children: [
-                  const Text('Device Connection', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                  const Text(
+                    'Device Connection',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                  ),
                   const SizedBox(width: 12),
                   Chip(
                     label: Text(status),
@@ -137,39 +144,53 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                 onPressed: isScanning ? () {} : _scanDevices,
               ),
               const SizedBox(height: 16),
-              const Text('Available Devices:', style: TextStyle(fontWeight: FontWeight.bold)),
+              const Text(
+                'Available Devices:',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
               const SizedBox(height: 8),
               if (devices.isEmpty)
                 const Center(child: Text('No devices found.'))
               else
-                ...devices.map((device) => Card(
-                  elevation: 1,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  child: ListTile(
-                    leading: Icon(Icons.devices, color: connectedDevice == device ? Colors.green : Colors.blueGrey),
-                    title: Text(device),
-                    trailing: connectedDevice == device
-                        ? const Icon(Icons.check_circle, color: Colors.green)
-                        : CustomButton(
-                            label: 'Connect',
-                            onPressed: () => _connectToDevice(device),
-                          ),
+                ...devices.map(
+                  (device) => Card(
+                    elevation: 1,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: ListTile(
+                      leading: Icon(
+                        Icons.devices,
+                        color: connectedDevice == device
+                            ? Colors.green
+                            : Colors.blueGrey,
+                      ),
+                      title: Text(device),
+                      trailing: connectedDevice == device
+                          ? const Icon(Icons.check_circle, color: Colors.green)
+                          : CustomButton(
+                              label: 'Connect',
+                              onPressed: () => _connectToDevice(device),
+                            ),
+                    ),
                   ),
-                )),
+                ),
               const SizedBox(height: 16),
               if (connectedDevice != null) ...[
-                CustomButton(
-                  label: 'Disconnect',
-                  onPressed: _disconnect,
-                ),
+                CustomButton(label: 'Disconnect', onPressed: _disconnect),
                 const SizedBox(height: 24),
                 const Divider(height: 32, thickness: 1.2),
-                const Text('Live Image Processing', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+                const Text(
+                  'Live Image Processing',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                ),
                 const SizedBox(height: 12),
                 Card(
                   color: Colors.blueGrey.withOpacity(0.04),
                   elevation: 0,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(
@@ -177,11 +198,19 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.image, color: Colors.blueGrey.shade400, size: 32),
+                            Icon(
+                              Icons.image,
+                              color: Colors.blueGrey.shade400,
+                              size: 32,
+                            ),
                             const SizedBox(width: 12),
                             Text(
-                              isProcessingImage ? 'Receiving image...' : 'Image received',
-                              style: const TextStyle(fontWeight: FontWeight.w500),
+                              isProcessingImage
+                                  ? 'Receiving image...'
+                                  : 'Image received',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
                           ],
                         ),
@@ -200,53 +229,69 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                                   ],
                                 )
                               : openAIResponse != null
-                                  ? Column(
-                                      key: const ValueKey('response'),
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const Text('OpenAI Response:', style: TextStyle(fontWeight: FontWeight.bold)),
-                                        const SizedBox(height: 8),
-                                        Container(
-                                          width: double.infinity,
-                                          padding: const EdgeInsets.all(12),
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(8),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black12,
-                                                blurRadius: 4,
-                                                offset: Offset(0, 2),
-                                              ),
-                                            ],
+                              ? Column(
+                                  key: const ValueKey('response'),
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'OpenAI Response:',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius: BorderRadius.circular(8),
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color: Colors.black12,
+                                            blurRadius: 4,
+                                            offset: Offset(0, 2),
                                           ),
-                                          child: Text(openAIResponse!),
-                                        ),
-                                        const SizedBox(height: 16),
-                                        CustomButton(
-                                          label: isTTSPlaying ? 'Reading...' : 'Read Aloud',
-                                          onPressed: isTTSPlaying ? () {} : _readAloud,
-                                        ),
-                                        AnimatedSwitcher(
-                                          duration: Duration(milliseconds: 400),
-                                          child: isTTSPlaying
-                                              ? Padding(
-                                                  key: const ValueKey('tts'),
-                                                  padding: const EdgeInsets.only(top: 8.0),
-                                                  child: Row(
-                                                    children: const [
-                                                      SizedBox(width: 8),
-                                                      CircularProgressIndicator(strokeWidth: 2),
-                                                      SizedBox(width: 12),
-                                                      Text('Playing audio...'),
-                                                    ],
+                                        ],
+                                      ),
+                                      child: Text(openAIResponse!),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    CustomButton(
+                                      label: isTTSPlaying
+                                          ? 'Reading...'
+                                          : 'Read Aloud',
+                                      onPressed: isTTSPlaying
+                                          ? () {}
+                                          : _readAloud,
+                                    ),
+                                    AnimatedSwitcher(
+                                      duration: Duration(milliseconds: 400),
+                                      child: isTTSPlaying
+                                          ? Padding(
+                                              key: const ValueKey('tts'),
+                                              padding: const EdgeInsets.only(
+                                                top: 8.0,
+                                              ),
+                                              child: Row(
+                                                children: const [
+                                                  SizedBox(width: 8),
+                                                  CircularProgressIndicator(
+                                                    strokeWidth: 2,
                                                   ),
-                                                )
-                                              : const SizedBox.shrink(),
-                                        ),
-                                      ],
-                                    )
-                                  : const Text('Waiting for image from hardware...', key: ValueKey('waiting')),
+                                                  SizedBox(width: 12),
+                                                  Text('Playing audio...'),
+                                                ],
+                                              ),
+                                            )
+                                          : const SizedBox.shrink(),
+                                    ),
+                                  ],
+                                )
+                              : const Text(
+                                  'Waiting for image from hardware...',
+                                  key: ValueKey('waiting'),
+                                ),
                         ),
                       ],
                     ),
@@ -259,4 +304,4 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       ),
     );
   }
-} 
+}
