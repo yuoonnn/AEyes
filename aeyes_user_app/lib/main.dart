@@ -35,7 +35,9 @@ class MyApp extends StatelessWidget {
   const MyApp({Key? key}) : super(key: key);
 
   // Global theme mode notifier
-  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(ThemeMode.light);
+  static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
+    ThemeMode.light,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +51,10 @@ class MyApp extends StatelessWidget {
             brightness: Brightness.light,
           ),
           darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple, brightness: Brightness.dark),
+            colorScheme: ColorScheme.fromSeed(
+              seedColor: Colors.deepPurple,
+              brightness: Brightness.dark,
+            ),
             brightness: Brightness.dark,
           ),
           themeMode: themeMode,
