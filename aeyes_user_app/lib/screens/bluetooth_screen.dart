@@ -4,6 +4,8 @@ import '../services/bluetooth_service.dart';
 import '../services/openai_service.dart';
 import '../services/tts_service.dart';
 import '../widgets/main_scaffold.dart';
+import 'dart:typed_data';
+
 
 class BluetoothScreen extends StatefulWidget {
   const BluetoothScreen({Key? key}) : super(key: key);
@@ -76,7 +78,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     // Simulate a delay for receiving image
     await Future.delayed(const Duration(seconds: 2));
     // Automatically send to OpenAI
-    final response = await _openAIService.processImage('mock_image_data');
+    Uint8List imageBytes = Uint8List.fromList([0, 1, 2, 3]); // from your ESP32 read (replace this)
+    final response = await _openAIService.processImage(imageBytes, "Describe the scene for navigation.");
+
     setState(() {
       openAIResponse = response;
       isProcessingImage = false;
