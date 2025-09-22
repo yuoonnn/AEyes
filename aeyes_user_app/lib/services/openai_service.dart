@@ -3,28 +3,32 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 class OpenAIService {
-  final String _apiKey = "sk-..."; // Replace with your actual key
+  final String apiKey;
 
-  Future<String> processImage(Uint8List imageBytes, String prompt) async {
+  OpenAIService(this.apiKey);
+
+  Future<String> analyzeImage(Uint8List imageBytes) async {
     final base64Image = base64Encode(imageBytes);
 
+    final url = Uri.parse("https://api.openai.com/v1/responses");
     final response = await http.post(
-      Uri.parse("https://api.openai.com/v1/chat/completions"),
+      url,
       headers: {
-        "Authorization": "Bearer $_apiKey",
+        "Authorization": "Bearer $apiKey",
         "Content-Type": "application/json",
       },
       body: jsonEncode({
-        "model": "gpt-4o",
-        "messages": [
+        "model": "gpt-4.1-mini",
+        "input": [
           {
             "role": "user",
             "content": [
-              {"type": "text", "text": prompt},
               {
-                "type": "image_url",
-                "image_url": {"url": "data:image/jpeg;base64,$base64Image"},
+                "type": "input_text",
+                "text":
+                    "Analyze this image for hazards a blind person should avoid.",
               },
+              {"type": "input_image", "image_data": base64Image},
             ],
           },
         ],
@@ -32,10 +36,10 @@ class OpenAIService {
     );
 
     if (response.statusCode == 200) {
-      final data = jsonDecode(response.body);
-      return data["choices"][0]["message"]["content"].toString();
+      final decoded = jsonDecode(response.body);
+      return decoded["output"][0]["content"][0]["text"];
     } else {
-      return "Error: ${response.body}";
+      throw Exception("OpenAI error: ${response.body}");
     }
   }
 }
