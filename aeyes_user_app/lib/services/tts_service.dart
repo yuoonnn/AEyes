@@ -1,9 +1,12 @@
-class TTSService {
-  // TODO: Implement Text-to-Speech methods
+import 'package:flutter_tts/flutter_tts.dart';
 
-  // Mock speak method
+class TTSService {
+  final FlutterTts _tts = FlutterTts();
+
   Future<void> speak(String text) async {
-    await Future.delayed(const Duration(seconds: 2));
-    // Simulate TTS playback
+    await _tts.setLanguage("en-US");
+    await _tts.setPitch(1.0);
+    await _tts.setSpeechRate(0.9);
+    await _tts.speak(text);
   }
-} 
+}

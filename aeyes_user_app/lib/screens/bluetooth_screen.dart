@@ -6,18 +6,25 @@ import '../services/tts_service.dart';
 import '../widgets/main_scaffold.dart';
 import 'dart:typed_data';
 
-
 class BluetoothScreen extends StatefulWidget {
-  const BluetoothScreen({Key? key}) : super(key: key);
+  final BluetoothService bluetoothService;
+  final OpenAIService openAIService;
+
+  const BluetoothScreen({
+    Key? key,
+    required this.bluetoothService,
+    required this.openAIService,
+  }) : super(key: key);
 
   @override
   State<BluetoothScreen> createState() => _BluetoothScreenState();
 }
 
 class _BluetoothScreenState extends State<BluetoothScreen> {
-  final BluetoothService _bluetoothService = BluetoothService();
-  final OpenAIService _openAIService = OpenAIService();
+  late final BluetoothService _bluetoothService;
+  late final OpenAIService _openAIService;
   final TTSService _ttsService = TTSService();
+
   List<String> devices = [];
   String? connectedDevice;
   bool isScanning = false;
@@ -27,6 +34,37 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   bool isProcessingImage = false;
   String? openAIResponse;
   bool isTTSPlaying = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _bluetoothService = widget.bluetoothService;
+    _openAIService = widget.openAIService;
+
+    // 🔗 Listen for incoming images from ESP32
+    _bluetoothService.onImageReceived = (Uint8List imageBytes) async {
+      setState(() {
+        isProcessingImage = true;
+        openAIResponse = null;
+      });
+
+      try {
+        final response = await _openAIService.analyzeImage(imageBytes);
+        setState(() {
+          openAIResponse = response;
+        });
+      } catch (e) {
+        setState(() {
+          openAIResponse = "Error: $e";
+        });
+      } finally {
+        setState(() {
+          isProcessingImage = false;
+        });
+      }
+    };
+  }
 
   Future<void> _scanDevices() async {
     setState(() {
@@ -51,10 +89,6 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       connectedDevice = success ? device : null;
       status = success ? 'Connected to $device' : 'Connection failed';
     });
-    if (success) {
-      // Simulate receiving image from hardware after connection
-      _receiveImageFromHardware();
-    }
   }
 
   Future<void> _disconnect() async {
@@ -66,23 +100,6 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       connectedDevice = null;
       status = 'Disconnected';
       openAIResponse = null;
-      isProcessingImage = false;
-    });
-  }
-
-  Future<void> _receiveImageFromHardware() async {
-    setState(() {
-      isProcessingImage = true;
-      openAIResponse = null;
-    });
-    // Simulate a delay for receiving image
-    await Future.delayed(const Duration(seconds: 2));
-    // Automatically send to OpenAI
-    Uint8List imageBytes = Uint8List.fromList([0, 1, 2, 3]); // from your ESP32 read (replace this)
-    final response = await _openAIService.processImage(imageBytes, "Describe the scene for navigation.");
-
-    setState(() {
-      openAIResponse = response;
       isProcessingImage = false;
     });
   }
@@ -270,7 +287,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                                           : _readAloud,
                                     ),
                                     AnimatedSwitcher(
-                                      duration: Duration(milliseconds: 400),
+                                      duration: const Duration(
+                                        milliseconds: 400,
+                                      ),
                                       child: isTTSPlaying
                                           ? Padding(
                                               key: const ValueKey('tts'),
