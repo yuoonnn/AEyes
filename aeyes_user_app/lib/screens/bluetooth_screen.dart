@@ -5,6 +5,8 @@ import '../services/openai_service.dart';
 import '../services/tts_service.dart';
 import '../widgets/main_scaffold.dart';
 import 'dart:typed_data';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart' as flutter_blue;
+import 'package:permission_handler/permission_handler.dart';
 
 class BluetoothScreen extends StatefulWidget {
   final BluetoothService bluetoothService;
@@ -29,6 +31,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   String? connectedDevice;
   bool isScanning = false;
   String status = 'Disconnected';
+
+  bool isBluetoothOn = true;
+  bool hasPermission = true;
 
   // OpenAI & TTS state
   bool isProcessingImage = false;
@@ -64,9 +69,78 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
         });
       }
     };
+
+    _monitorBluetoothStatus();
+  }
+
+  /// 🔍 Monitors Bluetooth state and permission changes
+  void _monitorBluetoothStatus() {
+    flutter_blue.FlutterBluePlus.adapterState.listen((state) async {
+      final permStatus = await Permission.bluetoothScan.status;
+      setState(() {
+        isBluetoothOn = state == flutter_blue.BluetoothAdapterState.on;
+        hasPermission = permStatus.isGranted;
+      });
+
+      if (!isBluetoothOn) {
+        _showBluetoothAlert("Bluetooth is turned OFF. Please enable it.");
+      } else if (!hasPermission) {
+        _showBluetoothAlert("Bluetooth permission not granted.");
+      }
+    });
+  }
+
+  /// 🔔 Show alert + TTS warning
+  void _showBluetoothAlert(String message) async {
+    await _ttsService.speak(message);
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text("Bluetooth Notice"),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text("OK"),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ⚙️ Check Bluetooth + permissions before scanning
+  Future<void> _checkBluetoothBeforeScan() async {
+    final state = await flutter_blue.FlutterBluePlus.adapterState.first;
+    final enabled = state == flutter_blue.BluetoothAdapterState.on;
+
+    final scanPerm = await Permission.bluetoothScan.isGranted;
+    final connectPerm = await Permission.bluetoothConnect.isGranted;
+    final locPerm = await Permission.location.isGranted;
+
+    if (!enabled) {
+      setState(() {
+        isBluetoothOn = false;
+      });
+      _showBluetoothAlert("Please turn ON Bluetooth to scan for devices.");
+      return;
+    }
+
+    if (!scanPerm || !connectPerm || !locPerm) {
+      await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.location,
+      ].request();
+      setState(() => hasPermission = true);
+    }
   }
 
   Future<void> _scanDevices() async {
+    await _checkBluetoothBeforeScan();
+    if (!isBluetoothOn || !hasPermission) return;
+
     setState(() {
       isScanning = true;
       devices = [];
@@ -122,6 +196,49 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     return Colors.grey;
   }
 
+  Widget _bluetoothBanner() {
+    if (!hasPermission) {
+      return _buildBanner(
+        Icons.warning,
+        'Bluetooth permission not granted. Please allow Bluetooth access.',
+        Colors.orange,
+      );
+    }
+
+    if (!isBluetoothOn) {
+      return _buildBanner(
+        Icons.bluetooth_disabled,
+        'Bluetooth is OFF. Please turn it ON.',
+        Colors.red,
+      );
+    }
+
+    return const SizedBox.shrink();
+  }
+
+  Widget _buildBanner(IconData icon, String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: color),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: TextStyle(color: color, fontWeight: FontWeight.w500),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return MainScaffold(
@@ -145,6 +262,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
           padding: const EdgeInsets.all(16.0),
           child: ListView(
             children: [
+              _bluetoothBanner(), // Bluetooth/permission warning banner
               Row(
                 children: [
                   const Text(
@@ -206,123 +324,72 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                   style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                 ),
                 const SizedBox(height: 12),
-                Card(
-                  color: Colors.blueGrey.withOpacity(0.04),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.image,
-                              color: Colors.blueGrey.shade400,
-                              size: 32,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              isProcessingImage
-                                  ? 'Receiving image...'
-                                  : 'Image received',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 16),
-                        AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 500),
-                          switchInCurve: Curves.easeIn,
-                          switchOutCurve: Curves.easeOut,
-                          child: isProcessingImage
-                              ? Row(
-                                  key: const ValueKey('processing'),
-                                  children: const [
-                                    CircularProgressIndicator(),
-                                    SizedBox(width: 16),
-                                    Text('Processing with OpenAI...'),
-                                  ],
-                                )
-                              : openAIResponse != null
-                              ? Column(
-                                  key: const ValueKey('response'),
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    const Text(
-                                      'OpenAI Response:',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    Container(
-                                      width: double.infinity,
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.black12,
-                                            blurRadius: 4,
-                                            offset: Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Text(openAIResponse!),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    CustomButton(
-                                      label: isTTSPlaying
-                                          ? 'Reading...'
-                                          : 'Read Aloud',
-                                      onPressed: isTTSPlaying
-                                          ? () {}
-                                          : _readAloud,
-                                    ),
-                                    AnimatedSwitcher(
-                                      duration: const Duration(
-                                        milliseconds: 400,
-                                      ),
-                                      child: isTTSPlaying
-                                          ? Padding(
-                                              key: const ValueKey('tts'),
-                                              padding: const EdgeInsets.only(
-                                                top: 8.0,
-                                              ),
-                                              child: Row(
-                                                children: const [
-                                                  SizedBox(width: 8),
-                                                  CircularProgressIndicator(
-                                                    strokeWidth: 2,
-                                                  ),
-                                                  SizedBox(width: 12),
-                                                  Text('Playing audio...'),
-                                                ],
-                                              ),
-                                            )
-                                          : const SizedBox.shrink(),
-                                    ),
-                                  ],
-                                )
-                              : const Text(
-                                  'Waiting for image from hardware...',
-                                  key: ValueKey('waiting'),
-                                ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                _buildImageProcessingCard(),
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageProcessingCard() {
+    return Card(
+      color: Colors.blueGrey.withOpacity(0.04),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 500),
+          switchInCurve: Curves.easeIn,
+          switchOutCurve: Curves.easeOut,
+          child: isProcessingImage
+              ? Row(
+                  key: const ValueKey('processing'),
+                  children: const [
+                    CircularProgressIndicator(),
+                    SizedBox(width: 16),
+                    Text('Processing with OpenAI...'),
+                  ],
+                )
+              : openAIResponse != null
+              ? Column(
+                  key: const ValueKey('response'),
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'OpenAI Response:',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black12,
+                            blurRadius: 4,
+                            offset: Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Text(openAIResponse!),
+                    ),
+                    const SizedBox(height: 16),
+                    CustomButton(
+                      label: isTTSPlaying ? 'Reading...' : 'Read Aloud',
+                      onPressed: isTTSPlaying ? () {} : _readAloud,
+                    ),
+                  ],
+                )
+              : const Text(
+                  'Waiting for image from hardware...',
+                  key: ValueKey('waiting'),
+                ),
         ),
       ),
     );
