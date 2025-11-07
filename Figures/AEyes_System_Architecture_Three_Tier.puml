@@ -1,0 +1,81 @@
+@startuml AEyes_System_Architecture_Three_Tier
+title AEyes System Architecture (Three‑Tier Model)
+
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam DefaultTextAlignment center
+skinparam nodesep 90
+skinparam ranksep 120
+
+package "Device Layer" as DeviceLayer {
+  rectangle "Smart Glasses" as Glasses {
+    component "Camera / Sensors" as Cam
+    component "Tactile Buttons" as Buttons
+    component "BLE Module" as BLE
+    component "Speaker / Bone Conduction" as Speaker
+  }
+}
+
+package "Mobile Layer (Flutter App)" as MobileLayer {
+  rectangle "AEyes App" as App {
+    component "App Core" as AppCore
+    component "Bluetooth Service\n(flutter_blue_plus)" as BT
+    component "TTS Engine\n(flutter_tts)" as TTS
+    component "Auth Client\n(firebase_auth)" as AuthClient
+    component "Data Sync\n(Firestore listeners)" as Sync
+    component "OpenAI Client" as OAClient
+    component "Maps UI / GPS" as MapsGPS
+  }
+}
+
+package "Cloud Layer" as CloudLayer {
+  node "Firebase" as Firebase {
+    component "Auth" as FbAuth
+    component "Firestore\n(realtime listeners)" as FbStore
+  }
+  node "Third‑Party APIs" as ThirdParty {
+    component "OpenAI API" as OpenAI
+    component "Maps Services" as MapsAPI
+  }
+}
+
+rectangle "Guardian App / Portal" as Guardian {
+  component "Realtime Updates\n(via Firestore)" as GuardianClient
+}
+
+' Device ↔ Mobile
+Cam --> BLE : sensor refs
+Buttons --> BLE : triggers
+BLE --> BT : GATT data
+BT --> AppCore : device events
+AppCore --> TTS : prompts → speech
+TTS --> BT : audio frames
+BT --> BLE : control / audio
+BLE --> Speaker : audio out
+
+' Mobile ↔ Cloud
+AppCore --> AuthClient
+AuthClient --> FbAuth : sign‑in / tokens
+AppCore --> FbStore : user data, location, battery
+FbStore --> GuardianClient : realtime updates
+GuardianClient --> FbStore : voice msgs / commands
+FbStore --> AppCore : guardian messages
+
+' AI and Maps
+AppCore --> OAClient
+OAClient --> OpenAI : prompts/images
+OpenAI --> OAClient : insights/captions
+AppCore --> MapsGPS
+MapsGPS --> MapsAPI : geocoding/routing
+
+legend left
+  = Layers =
+  Device: Glasses sensors/controls and BLE
+  Mobile: Flutter app orchestration, TTS, Auth, Sync
+  Cloud: Firebase (Auth, Firestore) + OpenAI, Maps
+endlegend
+
+@enduml
+
