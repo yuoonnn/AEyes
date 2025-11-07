@@ -1,71 +1,62 @@
 import 'dart:async';
 import 'dart:typed_data';
-import 'package:flutter_reactive_ble/flutter_reactive_ble.dart';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 class BluetoothService {
-  final FlutterReactiveBle _ble = FlutterReactiveBle();
-  DiscoveredDevice? _device;
-  StreamSubscription<DiscoveredDevice>? _scanStream;
-  StreamSubscription<ConnectionStateUpdate>? _connectionStream;
-  StreamSubscription<List<int>>? _notifyStream;
+  final FlutterBluetoothSerial _bluetooth = FlutterBluetoothSerial.instance;
+  BluetoothConnection? _connection;
 
-  final Uuid serviceUuid = Uuid.parse("12345678-1234-1234-1234-1234567890ab");
-  final Uuid charUuid = Uuid.parse("abcd1234-ab12-cd34-ef56-1234567890ab");
-
-  // Image buffer
-  final List<int> _imageBuffer = [];
   Function(Uint8List)? onImageReceived;
 
-  // Scan for ESP32 device
-  void startScan() {
-    _scanStream = _ble.scanForDevices(withServices: [serviceUuid]).listen((
-      device,
-    ) {
-      if (device.name.contains("ESP32S3-CAM")) {
-        _device = device;
-        stopScan();
-        connect();
+  bool get isConnected => _connection?.isConnected ?? false;
+
+  /// Scan for nearby Bluetooth devices
+  Future<List<String>> scanForDevices() async {
+    final List<String> found = [];
+    final bondedDevices = await _bluetooth.getBondedDevices();
+    for (var device in bondedDevices) {
+      if (device.name != null && !found.contains(device.name)) {
+        found.add(device.name!);
       }
-    });
+    }
+    return found;
   }
 
-  void stopScan() {
-    _scanStream?.cancel();
-  }
-
-  void connect() {
-    if (_device == null) return;
-    _connectionStream = _ble.connectToDevice(id: _device!.id).listen((update) {
-      if (update.connectionState == DeviceConnectionState.connected) {
-        _subscribeToCharacteristic();
-      }
-    });
-  }
-
-  void _subscribeToCharacteristic() {
-    final characteristic = QualifiedCharacteristic(
-      serviceId: serviceUuid,
-      characteristicId: charUuid,
-      deviceId: _device!.id,
+  /// Connect to selected device by name
+  Future<bool> connect(String deviceName) async {
+    final List<BluetoothDevice> devices = await _bluetooth.getBondedDevices();
+    final target = devices.firstWhere(
+      (d) => d.name == deviceName,
+      orElse: () => BluetoothDevice(address: '', name: null),
     );
 
-    _notifyStream = _ble.subscribeToCharacteristic(characteristic).listen((
-      data,
-    ) {
-      _imageBuffer.addAll(data);
+    if (target.address.isEmpty) {
+      print("Device not found");
+      return false;
+    }
 
-      // Optional: Detect end of image (JPEG ends with 0xFFD9)
-      if (_imageBuffer.length > 2 &&
-          _imageBuffer[_imageBuffer.length - 2] == 0xFF &&
-          _imageBuffer[_imageBuffer.length - 1] == 0xD9) {
-        onImageReceived?.call(Uint8List.fromList(_imageBuffer));
-        _imageBuffer.clear();
-      }
-    });
+    try {
+      _connection = await BluetoothConnection.toAddress(target.address);
+      print('Connected to ${target.name}');
+
+      _connection!.input
+          ?.listen((Uint8List data) {
+            print('Received ${data.length} bytes');
+            onImageReceived?.call(Uint8List.fromList(data));
+          })
+          .onDone(() {
+            print('Disconnected by remote device');
+          });
+
+      return true;
+    } catch (e) {
+      print('Connection failed: $e');
+      return false;
+    }
   }
 
-  void disconnect() {
-    _connectionStream?.cancel();
-    _notifyStream?.cancel();
+  Future<void> disconnect() async {
+    await _connection?.close();
+    _connection = null;
   }
 }

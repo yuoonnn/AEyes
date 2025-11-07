@@ -1,24 +1,47 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import '../services/bluetooth_service.dart';
+import '../services/openai_service.dart';
 import '../widgets/main_scaffold.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({Key? key}) : super(key: key);
+  final BluetoothService bluetoothService;
+  final OpenAIService openAIService;
+
+  const HomeScreen({
+    super.key,
+    required this.bluetoothService,
+    required this.openAIService,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   double _opacity = 0.0;
+  String analysisResult = "Waiting for image...";
 
   @override
   void initState() {
     super.initState();
+
+    // Fade-in animation
     Future.delayed(const Duration(milliseconds: 200), () {
-      setState(() {
-        _opacity = 1.0;
-      });
+      setState(() => _opacity = 1.0);
     });
+
+    // Hook into Bluetooth image receiving
+    widget.bluetoothService.onImageReceived = (Uint8List image) async {
+      setState(() => analysisResult = "Analyzing...");
+      try {
+        final result = await widget.openAIService.analyzeImage(image);
+        setState(() => analysisResult = result);
+      } catch (e) {
+        setState(() => analysisResult = "Error: $e");
+      }
+    };
   }
 
   @override
@@ -32,10 +55,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
         appBar: AppBar(
           title: Row(
             children: [
-              Image.asset(
-                'assets/AEye Logo.png',
-                height: 32,
-              ),
+              Image.asset('assets/AEye Logo.png', height: 32),
               const SizedBox(width: 12),
               const Text(
                 'AEyes Dashboard',
@@ -47,7 +67,11 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
+              onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/',
+                (route) => false,
+              ),
             ),
           ],
         ),
@@ -71,16 +95,25 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                 const SizedBox(height: 32),
                 Card(
                   elevation: 4,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
                   color: green.withOpacity(0.08),
                   child: ListTile(
                     leading: CircleAvatar(
                       backgroundColor: greenAccent,
-                      child: const Icon(Icons.account_circle, size: 32, color: Colors.white),
+                      child: const Icon(
+                        Icons.account_circle,
+                        size: 32,
+                        color: Colors.white,
+                      ),
                     ),
                     title: const Text(
                       'Your Name',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 18,
+                      ),
                     ),
                     subtitle: const Text('your@email.com'),
                     trailing: IconButton(
@@ -90,6 +123,46 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                     ),
                   ),
                 ),
+                const SizedBox(height: 32),
+
+                // Hazard Guidance Card
+                Card(
+                  elevation: 3,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.warning,
+                              color: Colors.orange.shade700,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 8),
+                            const Text(
+                              'Hazard Guidance',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          analysisResult,
+                          style: const TextStyle(fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
                 const SizedBox(height: 32),
                 Expanded(
                   child: GridView.count(
@@ -119,7 +192,7 @@ class _HomeScreenState extends State<HomeScreen> with SingleTickerProviderStateM
                         icon: Icons.image,
                         label: 'OpenAI',
                         color: greenAccent,
-                        onTap: () {}, // Placeholder for OpenAI feature
+                        onTap: () {}, // placeholder
                       ),
                     ],
                   ),
@@ -148,28 +221,24 @@ class _AnimatedQuickActionCard extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  State<_AnimatedQuickActionCard> createState() => _AnimatedQuickActionCardState();
+  State<_AnimatedQuickActionCard> createState() =>
+      _AnimatedQuickActionCardState();
 }
 
-class _AnimatedQuickActionCardState extends State<_AnimatedQuickActionCard> with SingleTickerProviderStateMixin {
+class _AnimatedQuickActionCardState extends State<_AnimatedQuickActionCard>
+    with SingleTickerProviderStateMixin {
   double _scale = 1.0;
 
   void _onTapDown(TapDownDetails details) {
-    setState(() {
-      _scale = 0.95;
-    });
+    setState(() => _scale = 0.95);
   }
 
   void _onTapUp(TapUpDetails details) {
-    setState(() {
-      _scale = 1.0;
-    });
+    setState(() => _scale = 1.0);
   }
 
   void _onTapCancel() {
-    setState(() {
-      _scale = 1.0;
-    });
+    setState(() => _scale = 1.0);
   }
 
   @override
@@ -184,7 +253,9 @@ class _AnimatedQuickActionCardState extends State<_AnimatedQuickActionCard> with
         duration: const Duration(milliseconds: 120),
         child: Card(
           color: widget.color.withOpacity(0.1),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           elevation: 1,
           child: Center(
             child: Column(
@@ -194,7 +265,11 @@ class _AnimatedQuickActionCardState extends State<_AnimatedQuickActionCard> with
                 const SizedBox(height: 12),
                 Text(
                   widget.label,
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.color),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: widget.color,
+                  ),
                 ),
               ],
             ),
@@ -203,4 +278,4 @@ class _AnimatedQuickActionCardState extends State<_AnimatedQuickActionCard> with
       ),
     );
   }
-} 
+}

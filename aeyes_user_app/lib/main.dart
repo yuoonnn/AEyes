@@ -11,6 +11,10 @@ import 'screens/guardian_dashboard_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
+// === Your services ===
+import 'services/bluetooth_service.dart';
+import 'services/openai_service.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   if (kIsWeb) {
@@ -28,11 +32,27 @@ void main() async {
   } else {
     await Firebase.initializeApp();
   }
-  runApp(const MyApp());
+
+  // Initialize your services here
+  final bluetoothService = BluetoothService();
+  final openAIService = OpenAIService(
+    "", // TODO: replace with env var
+  );
+
+  runApp(
+    MyApp(bluetoothService: bluetoothService, openAIService: openAIService),
+  );
 }
 
 class MyApp extends StatelessWidget {
-  const MyApp({Key? key}) : super(key: key);
+  final BluetoothService bluetoothService;
+  final OpenAIService openAIService;
+
+  const MyApp({
+    super.key,
+    required this.bluetoothService,
+    required this.openAIService,
+  });
 
   // Global theme mode notifier
   static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
@@ -46,6 +66,7 @@ class MyApp extends StatelessWidget {
       builder: (context, themeMode, _) {
         return MaterialApp(
           title: 'AEyes User App',
+          debugShowCheckedModeBanner: false,
           theme: ThemeData(
             colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
             brightness: Brightness.light,
@@ -62,10 +83,16 @@ class MyApp extends StatelessWidget {
           routes: {
             '/': (context) => const RoleSelectionScreen(),
             '/login': (context) => const LoginScreen(),
-            '/home': (context) => const HomeScreen(),
+            '/home': (context) => HomeScreen(
+              bluetoothService: bluetoothService,
+              openAIService: openAIService,
+            ),
             '/settings': (context) => const SettingsScreen(),
             '/profile': (context) => const ProfileScreen(),
-            '/bluetooth': (context) => const BluetoothScreen(),
+            '/bluetooth': (context) => BluetoothScreen(
+              bluetoothService: bluetoothService,
+              openAIService: openAIService,
+            ),
             '/register': (context) => const RegistrationScreen(),
             '/guardian_login': (context) => const GuardianLoginScreen(),
             '/guardian_dashboard': (context) => const GuardianDashboardScreen(),
