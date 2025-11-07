@@ -36,7 +36,7 @@ void main() async {
   // Initialize your services here
   final bluetoothService = BluetoothService();
   final openAIService = OpenAIService(
-    "YOUR_OPENAI_API_KEY", // TODO: replace with env var
+    "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", // TODO: replace with env var
   );
 
   runApp(

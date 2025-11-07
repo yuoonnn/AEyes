@@ -73,7 +73,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     _monitorBluetoothStatus();
   }
 
-  /// 🔍 Monitors Bluetooth state and permission changes
+  /// 🔍 Monitors Bluetooth state & permission changes
   void _monitorBluetoothStatus() {
     flutter_blue.FlutterBluePlus.adapterState.listen((state) async {
       final permStatus = await Permission.bluetoothScan.status;
@@ -90,7 +90,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     });
   }
 
-  /// 🔔 Show alert + TTS warning
+  /// 🔔 Alert + optional TTS
   void _showBluetoothAlert(String message) async {
     await _ttsService.speak(message);
     if (!mounted) return;
@@ -110,59 +110,46 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     );
   }
 
-  /// ⚙️ Check Bluetooth + permissions before scanning
-  Future<void> _checkBluetoothBeforeScan() async {
-    final state = await flutter_blue.FlutterBluePlus.adapterState.first;
-    final enabled = state == flutter_blue.BluetoothAdapterState.on;
-
-    final scanPerm = await Permission.bluetoothScan.isGranted;
-    final connectPerm = await Permission.bluetoothConnect.isGranted;
-    final locPerm = await Permission.location.isGranted;
-
-    if (!enabled) {
-      setState(() {
-        isBluetoothOn = false;
-      });
-      _showBluetoothAlert("Please turn ON Bluetooth to scan for devices.");
-      return;
-    }
-
-    if (!scanPerm || !connectPerm || !locPerm) {
-      await [
-        Permission.bluetoothScan,
-        Permission.bluetoothConnect,
-        Permission.location,
-      ].request();
-      setState(() => hasPermission = true);
-    }
-  }
-
+  /// ⚙️ Try scanning (BluetoothService already checks internally)
   Future<void> _scanDevices() async {
-    await _checkBluetoothBeforeScan();
-    if (!isBluetoothOn || !hasPermission) return;
-
     setState(() {
       isScanning = true;
       devices = [];
       status = 'Scanning...';
     });
-    final foundDevices = await _bluetoothService.scanForDevices();
-    setState(() {
-      devices = foundDevices;
-      isScanning = false;
-      status = 'Scan complete';
-    });
+
+    try {
+      final foundDevices = await _bluetoothService.scanForDevices();
+      setState(() {
+        devices = foundDevices;
+        status = foundDevices.isEmpty ? 'No devices found' : 'Scan complete';
+      });
+    } catch (e) {
+      setState(() {
+        status = e.toString(); // e.g. permission or Bluetooth off
+      });
+      _showBluetoothAlert(status);
+    } finally {
+      setState(() {
+        isScanning = false;
+      });
+    }
   }
 
   Future<void> _connectToDevice(String device) async {
     setState(() {
       status = 'Connecting to $device...';
     });
-    final success = await _bluetoothService.connect(device);
-    setState(() {
-      connectedDevice = success ? device : null;
-      status = success ? 'Connected to $device' : 'Connection failed';
-    });
+    try {
+      final success = await _bluetoothService.connect(device);
+      setState(() {
+        connectedDevice = success ? device : null;
+        status = success ? 'Connected to $device' : 'Connection failed';
+      });
+    } catch (e) {
+      setState(() => status = "Connection error: $e");
+      _showBluetoothAlert(status);
+    }
   }
 
   Future<void> _disconnect() async {
@@ -262,7 +249,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
           padding: const EdgeInsets.all(16.0),
           child: ListView(
             children: [
-              _bluetoothBanner(), // Bluetooth/permission warning banner
+              _bluetoothBanner(),
               Row(
                 children: [
                   const Text(
