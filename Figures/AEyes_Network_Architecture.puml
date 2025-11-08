@@ -1,0 +1,88 @@
+@startuml AEyes_Network_Architecture
+title AEyes Network Architecture\nSmart Glasses → Smartphone (AEyes App) → Cloud
+
+left to right direction
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam DefaultTextAlignment center
+skinparam nodesep 90
+skinparam ranksep 120
+
+rectangle "Smart Glasses" as Glasses {
+  component "Camera / Sensors" as Cam
+  component "BLE Module" as BLE
+}
+
+rectangle "Smartphone\n(AEyes Flutter App)" as Phone {
+  component "App Core" as AppCore
+  component "Bluetooth Service\n(flutter_blue_plus)" as BT
+  component "TTS Engine\n(flutter_tts)" as TTS
+  component "Auth Client\n(firebase_auth)" as AuthClient
+  component "Maps UI\n(google_maps_flutter)" as MapsUI
+  component "OpenAI Client\n(openai_service)" as OpenAIClient
+}
+
+cloud "Cloud" as Cloud {
+  node "Firebase" as Firebase {
+    component "Auth" as FirebaseAuth
+    component "Firestore (realtime listeners)" as Firestore
+  }
+
+  node "Third‑Party APIs" as APIs {
+    component "OpenAI API" as OpenAI
+    component "Maps Services" as MapsAPI
+  }
+}
+
+rectangle "Guardian Device\n(App / Portal)" as Guardian {
+  component "Realtime Updates\n(via Firestore)" as GuardianUpdates
+}
+
+' Data capture & local processing (Left → Right)
+Cam --> BLE : sensor stream
+BLE --> BT : BLE frames / telemetry
+BT --> AppCore : device data
+AppCore --> OpenAIClient : extracted context / prompts
+OpenAIClient --> AppCore : insights / captions
+AppCore --> TTS : local text → speech
+TTS --> BT : audio frames
+BT --> BLE : control / audio
+BLE --> Glasses : audio to speaker
+
+' Authentication
+AppCore --> AuthClient : initiate login
+AuthClient --> FirebaseAuth : sign-in / tokens
+
+' Cloud storage / sync
+AppCore --> Firestore : user data / events, location, battery alerts
+Firestore --> GuardianUpdates : subscribe changes
+
+' AI assistance path (Cloud)
+OpenAIClient --> OpenAI : prompts
+OpenAI --> OpenAIClient : results
+
+' Maps/UI path
+AppCore --> MapsUI : navigation / POIs
+MapsUI --> MapsAPI : geocoding / routing
+
+' Place Phone as central controller
+AppCore --> BT : manage BLE
+AppCore --> OpenAIClient
+AppCore --> TTS
+AppCore --> AuthClient
+
+' Notes:
+legend left
+  = Legend =
+  All arrows: active flows
+endlegend
+
+' Serverless only (no Functions)
+
+' Guardian one-way communication
+GuardianUpdates --> Firestore : voice msg / commands
+Firestore --> AppCore : guardian messages
+
+@enduml
+

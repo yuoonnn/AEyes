@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="AutoImportSettings">
+    <option name="autoReloadType" value="NONE" />
+  </component>
+  <component name="ChangeListManager">
+    <list default="true" id="fe1bc3f7-fd05-4a39-9f87-ccfb333ee78d" name="Changes" comment="">
+      <change beforePath="$PROJECT_DIR$/Figures/AEyes_Network_Architecture.drawio" beforeDir="false" afterPath="$PROJECT_DIR$/Figures/AEyes_Network_Architecture.drawio" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Figures/AEyes_System_Architecture_Three_Tier.puml" beforeDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/android/app/src/main/AndroidManifest.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/ios/Runner/AppDelegate.swift" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/ios/Runner/AppDelegate.swift" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/main.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_login_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/home_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/home_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/login_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/profile_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/profile_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/settings_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/settings_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/services/bluetooth_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/services/bluetooth_service.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/widgets/custom_textfield.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/widgets/custom_textfield.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/pubspec.yaml" afterDir="false" />
+    </list>
+    <option name="SHOW_DIALOG" value="false" />
+    <option name="HIGHLIGHT_CONFLICTS" value="true" />
+    <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
+    <option name="LAST_RESOLUTION" value="IGNORE" />
+  </component>
+  <component name="ClangdSettings">
+    <option name="formatViaClangd" value="false" />
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_GIT_ROOT_PATH" value="$PROJECT_DIR$" />
+  </component>
+  <component name="ProjectColorInfo">{
+  &quot;associatedIndex&quot;: 6
+}</component>
+  <component name="ProjectId" id="2z2RROCfp6zfQqNvIpP19chwAaZ" />
+  <component name="ProjectViewState">
+    <option name="hideEmptyMiddlePackages" value="true" />
+    <option name="showLibraryContents" value="true" />
+  </component>
+  <component name="PropertiesComponent"><![CDATA[{
+  "keyToString": {
+    "ModuleVcsDetector.initialDetectionPerformed": "true",
+    "RunOnceActivity.ShowReadmeOnStart": "true",
+    "RunOnceActivity.cidr.known.project.marker": "true",
+    "RunOnceActivity.git.unshallow": "true",
+    "RunOnceActivity.readMode.enableVisualFormatting": "true",
+    "cf.first.check.clang-format": "false",
+    "cidr.known.project.marker": "true",
+    "dart.analysis.tool.window.visible": "false",
+    "git-widget-placeholder": "IOS-Branch",
+    "kotlin-language-version-configured": "true",
+    "last_opened_file_path": "D:/Program Project/AEyes Project",
+    "settings.editor.selected.configurable": "dart.settings",
+    "show.migrate.to.gradle.popup": "false"
+  }
+}]]></component>
+  <component name="TaskManager">
+    <task active="true" id="Default" summary="Default task">
+      <changelist id="fe1bc3f7-fd05-4a39-9f87-ccfb333ee78d" name="Changes" comment="" />
+      <created>1750927173000</created>
+      <option name="number" value="Default" />
+      <option name="presentableId" value="Default" />
+      <updated>1750927173000</updated>
+    </task>
+    <servers />
+  </component>
+</project>

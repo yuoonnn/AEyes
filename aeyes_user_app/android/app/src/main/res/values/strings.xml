@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Facebook App ID and Client Token -->
+    <!-- 
+    To get these values:
+    1. Go to https://developers.facebook.com/apps/
+    2. Create a new app or select existing one
+    3. Go to Settings → Basic
+    4. Copy App ID and App Secret
+    5. Replace the values below
+    -->
+    <string name="facebook_app_id">2235412526886989</string>
+    <string name="facebook_client_token">ade56363ebcd164bb31b76d419a898fe</string>
+</resources>
+
