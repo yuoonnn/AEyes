@@ -90,6 +90,54 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _deleteGuardian(String guardianId) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Guardian'),
+        content: const Text(
+          'Are you sure you want to remove this guardian? They will no longer be able to access your data.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Remove', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => isLoading = true);
+    try {
+      await _databaseService.deleteGuardian(guardianId);
+      await _loadGuardians();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guardian removed successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error removing guardian: $e')),
+        );
+      }
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
   void _showLinkGuardianDialog() {
     showDialog(
       context: context,
@@ -426,16 +474,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 leading: const Icon(Icons.person, color: Color(0xFF388E3C)),
                                 title: Text(guardian['guardian_name'] ?? 'Unknown'),
                                 subtitle: Text(guardian['guardian_email'] ?? ''),
-                                trailing: Chip(
-                                  label: Text(
-                                    guardian['relationship_status'] == 'active' 
-                                        ? 'Active' 
-                                        : 'Pending',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                  backgroundColor: guardian['relationship_status'] == 'active'
-                                      ? Colors.green.shade100
-                                      : Colors.orange.shade100,
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Chip(
+                                      label: Text(
+                                        guardian['relationship_status'] == 'active' 
+                                            ? 'Active' 
+                                            : 'Pending',
+                                        style: const TextStyle(fontSize: 12),
+                                      ),
+                                      backgroundColor: guardian['relationship_status'] == 'active'
+                                          ? Colors.green.shade100
+                                          : Colors.orange.shade100,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    IconButton(
+                                      icon: const Icon(Icons.delete, color: Colors.red),
+                                      onPressed: () => _deleteGuardian(guardian['guardian_id'] as String),
+                                      tooltip: 'Remove guardian',
+                                    ),
+                                  ],
                                 ),
                               ),
                             )),

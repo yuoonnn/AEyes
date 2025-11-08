@@ -1,341 +1,62 @@
-import 'package:flutter_blue_plus/flutter_blue_plus.dart' as ble;
 import 'dart:async';
 import 'dart:typed_data';
+import 'package:flutter_bluetooth_serial/flutter_bluetooth_serial.dart';
 
 class BluetoothService {
-  StreamSubscription<List<ble.ScanResult>>? _scanSubscription;
-  ble.BluetoothDevice? _connectedDevice;
-  List<ble.BluetoothService>? _services;
-  
-  // Callback for image reception
+  final FlutterBluetoothSerial _bluetooth = FlutterBluetoothSerial.instance;
+  BluetoothConnection? _connection;
+
   Function(Uint8List)? onImageReceived;
 
-  // Device connection state
-  bool get isConnected => _connectedDevice != null;
-  ble.BluetoothDevice? get connectedDevice => _connectedDevice;
+  bool get isConnected => _connection?.isConnected ?? false;
 
-  // Check if Bluetooth is enabled
-  Future<bool> isBluetoothEnabled() async {
-    try {
-      final state = await ble.FlutterBluePlus.adapterState.first;
-      return state == ble.BluetoothAdapterState.on;
-    } catch (e) {
-      print('Error checking Bluetooth state: $e');
-      return false;
+  /// Scan for nearby Bluetooth devices
+  Future<List<String>> scanForDevices() async {
+    final List<String> found = [];
+    final bondedDevices = await _bluetooth.getBondedDevices();
+    for (var device in bondedDevices) {
+      if (device.name != null && !found.contains(device.name)) {
+        found.add(device.name!);
+      }
     }
+    return found;
   }
 
-  // Request Bluetooth permissions (Android 12+)
-  Future<bool> requestPermissions() async {
-    try {
-      // Check if Bluetooth is available
-      if (!await ble.FlutterBluePlus.isSupported) {
-        print('Bluetooth not supported on this device');
-        return false;
-      }
+  /// Connect to selected device by name
+  Future<bool> connect(String deviceName) async {
+    final List<BluetoothDevice> devices = await _bluetooth.getBondedDevices();
+    final target = devices.firstWhere(
+      (d) => d.name == deviceName,
+      orElse: () => BluetoothDevice(address: '', name: null),
+    );
 
-      // Check if Bluetooth is enabled
-      final isEnabled = await isBluetoothEnabled();
-      if (!isEnabled) {
-        print('Bluetooth is not enabled');
-        return false;
-      }
-
-      return true;
-    } catch (e) {
-      print('Error requesting permissions: $e');
+    if (target.address.isEmpty) {
+      print("Device not found");
       return false;
     }
-  }
 
-  // Scan for BLE devices ONLY (flutter_blue_plus only scans BLE, not classic Bluetooth)
-  // This is perfect for ESP32 which uses BLE
-  Stream<List<ble.BluetoothDevice>> scanForDevices({Duration? timeout}) async* {
-    // Check permissions and Bluetooth state first
-    final hasPermissions = await requestPermissions();
-    if (!hasPermissions) {
-      print('Bluetooth permissions not granted or Bluetooth not enabled');
-      return;
-    }
+    try {
+      _connection = await BluetoothConnection.toAddress(target.address);
+      print('Connected to ${target.name}');
 
-    final controller = StreamController<List<ble.BluetoothDevice>>();
-    final devices = <ble.BluetoothDevice>[];
-    final deviceMap = <String, ble.BluetoothDevice>{};
-
-    _scanSubscription = ble.FlutterBluePlus.scanResults.listen((results) {
-      for (final result in results) {
-        final deviceId = result.device.remoteId.toString();
-        
-        // Avoid duplicates
-        if (!deviceMap.containsKey(deviceId)) {
-          // flutter_blue_plus only returns BLE devices, so all results are BLE
-          devices.add(result.device);
-          deviceMap[deviceId] = result.device;
-          
-          // Sort by RSSI (stronger signal first) - helps find ESP32
-          devices.sort((a, b) {
-            final aResult = results.firstWhere((r) => r.device.remoteId == a.remoteId, orElse: () => results.first);
-            final bResult = results.firstWhere((r) => r.device.remoteId == b.remoteId, orElse: () => results.first);
-            return (bResult.rssi).compareTo(aResult.rssi);
+      _connection!.input
+          ?.listen((Uint8List data) {
+            print('Received ${data.length} bytes');
+            onImageReceived?.call(Uint8List.fromList(data));
+          })
+          .onDone(() {
+            print('Disconnected by remote device');
           });
-          
-          controller.add(List.from(devices));
-          
-          // Debug: Print found devices
-          final deviceName = result.device.platformName.isNotEmpty 
-              ? result.device.platformName 
-              : 'Unknown Device';
-          print('Found BLE device: $deviceName (${result.device.remoteId}), RSSI: ${result.rssi}');
-        }
-      }
-    });
-
-    try {
-      // Start scanning for BLE devices only
-      // Note: flutter_blue_plus.startScan() only scans BLE devices by default
-      // It will NOT scan classic Bluetooth devices (like speakers, headphones, etc.)
-      // Increased timeout to 15 seconds for better ESP32 detection
-      await ble.FlutterBluePlus.startScan(
-        timeout: timeout ?? const Duration(seconds: 15),
-        // Don't filter by services - show all BLE devices to help debug
-        // Optional: Filter by services if you know ESP32's service UUID
-        // withServices: [ble.Guid('your-esp32-service-uuid')],
-      );
-      
-      print('Started BLE scan (timeout: ${timeout ?? const Duration(seconds: 15)})');
-    } catch (e) {
-      print('Error starting scan: $e');
-      controller.addError(e);
-      return;
-    }
-
-    // Stop scanning after timeout and close stream
-    Future.delayed(timeout ?? const Duration(seconds: 15), () {
-      stopScan();
-      controller.close();
-      print('Scan completed. Found ${devices.length} devices');
-    });
-
-    yield* controller.stream;
-  }
-
-  // Stop scanning
-  void stopScan() {
-    _scanSubscription?.cancel();
-    _scanSubscription = null;
-    ble.FlutterBluePlus.stopScan();
-  }
-
-  // Get device name with fallback
-  String _getDeviceName(ble.BluetoothDevice device) {
-    try {
-      // Try to get the local name first, then use remoteId as fallback
-      final localName = device.platformName;
-      if (localName != null && localName.isNotEmpty) {
-        return localName;
-      }
-      return device.remoteId.toString();
-    } catch (e) {
-      return device.remoteId.toString();
-    }
-  }
-
-  // Get device type
-  String _getDeviceType(ble.BluetoothDevice device) {
-    try {
-      // All devices returned by flutter_blue_plus are BLE devices
-      // Classic Bluetooth devices (speakers, headphones, etc.) are NOT included
-      // This is perfect for ESP32 which uses BLE
-      return 'BLE';
-    } catch (e) {
-      return 'Unknown';
-    }
-  }
-
-  // Get scanned devices list (BLE devices only)
-  Future<List<Map<String, dynamic>>> getScannedDevices() async {
-    final devices = <Map<String, dynamic>>[];
-    
-    try {
-      // Check permissions first
-      final hasPermissions = await requestPermissions();
-      if (!hasPermissions) {
-        print('Cannot scan: Bluetooth permissions not granted or Bluetooth not enabled');
-        return devices;
-      }
-
-      // Start scan for BLE devices only (classic Bluetooth devices are excluded)
-      // Increased timeout for better ESP32 detection
-      await ble.FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
-      
-      // Wait longer to collect more devices
-      await Future.delayed(const Duration(seconds: 5));
-      
-      final results = ble.FlutterBluePlus.scanResults;
-      final resultsList = await results.first;
-      
-      print('Scan results: ${resultsList.length} devices found');
-      
-      for (final result in resultsList) {
-        final device = result.device;
-        final deviceName = _getDeviceName(device);
-        final deviceType = _getDeviceType(device);
-        
-        devices.add({
-          'id': device.remoteId.toString(),
-          'name': deviceName,
-          'type': deviceType,
-          'rssi': result.rssi,
-          'device': device,
-        });
-        
-        // Debug: Print device info
-        print('Device: $deviceName, ID: ${device.remoteId}, RSSI: ${result.rssi}');
-      }
-      
-      // Sort by RSSI (stronger signal first)
-      devices.sort((a, b) => (b['rssi'] as int).compareTo(a['rssi'] as int));
-      
-      await ble.FlutterBluePlus.stopScan();
-    } catch (e) {
-      print('Error getting scanned devices: $e');
-    }
-    
-    return devices;
-  }
-
-  // Connect to a device
-  Future<bool> connectToDevice(ble.BluetoothDevice device) async {
-    try {
-      if (_connectedDevice != null) {
-        await disconnectDevice();
-      }
-
-      print('Connecting to device: ${_getDeviceName(device)}');
-      
-      // Connect with timeout
-      await device.connect(timeout: const Duration(seconds: 15));
-      _connectedDevice = device;
-
-      print('Connected to ${_getDeviceName(device)}');
-
-      // Discover services
-      List<ble.BluetoothService> bleServices = await device.discoverServices();
-      _services = bleServices;
-
-      print('Discovered ${bleServices.length} services');
 
       return true;
     } catch (e) {
-      print('Failed to connect to device: $e');
+      print('Connection failed: $e');
       return false;
     }
   }
 
-  // Alias for connectToDevice to match existing code
-  Future<bool> connect(ble.BluetoothDevice device) async {
-    return await connectToDevice(device);
-  }
-
-  // Connect to device by ID
-  Future<bool> connectToDeviceById(String deviceId) async {
-    try {
-      // First, try to get from scanned devices
-      final scannedDevices = await getScannedDevices();
-      final deviceInfo = scannedDevices.firstWhere(
-        (device) => device['id'] == deviceId,
-        orElse: () => {},
-      );
-
-      if (deviceInfo.isEmpty) {
-        print('Device not found in scanned devices');
-        return false;
-      }
-
-      final device = deviceInfo['device'] as ble.BluetoothDevice;
-      return await connectToDevice(device);
-    } catch (e) {
-      print('Error connecting to device by ID: $e');
-      return false;
-    }
-  }
-
-  // Disconnect from current device
-  Future<void> disconnectDevice() async {
-    try {
-      if (_connectedDevice != null) {
-        await _connectedDevice?.disconnect();
-        _connectedDevice = null;
-        _services = null;
-        print('Disconnected from device');
-      }
-    } catch (e) {
-      print('Error disconnecting device: $e');
-    }
-  }
-
-  // Alias for disconnectDevice to match existing code
   Future<void> disconnect() async {
-    await disconnectDevice();
-  }
-
-  // Get connected device info
-  Map<String, dynamic>? getConnectedDeviceInfo() {
-    if (_connectedDevice == null) return null;
-
-    return {
-      'id': _connectedDevice!.remoteId.toString(),
-      'name': _getDeviceName(_connectedDevice!),
-      'type': _getDeviceType(_connectedDevice!),
-    };
-  }
-
-  // Get services
-  List<ble.BluetoothService>? getServices() {
-    return _services;
-  }
-
-  // Check Bluetooth state
-  Stream<ble.BluetoothAdapterState> get bluetoothState => ble.FlutterBluePlus.adapterState;
-
-  // Check if Bluetooth is available
-  Future<bool> get isAvailable async => await ble.FlutterBluePlus.isSupported;
-
-  // Send image data to connected device
-  Future<void> sendImageData(Uint8List imageData) async {
-    if (_connectedDevice == null || _services == null) {
-      print('No device connected or services discovered');
-      return;
-    }
-
-    try {
-      // Find the appropriate service and characteristic for image transfer
-      for (final service in _services!) {
-        for (final characteristic in service.characteristics) {
-          // Check if this characteristic supports write operations
-          if (characteristic.properties.write) {
-            // Split image data into chunks if needed (MTU limitation)
-            const chunkSize = 512; // Adjust based on your device's MTU
-            for (int i = 0; i < imageData.length; i += chunkSize) {
-              final end = (i + chunkSize < imageData.length) ? i + chunkSize : imageData.length;
-              final chunk = imageData.sublist(i, end);
-              await characteristic.write(chunk);
-            }
-            print('Image data sent successfully');
-            return;
-          }
-        }
-      }
-      print('No writable characteristic found for image transfer');
-    } catch (e) {
-      print('Error sending image data: $e');
-    }
-  }
-
-  // Cleanup
-  void dispose() {
-    stopScan();
-    _scanSubscription?.cancel();
-    disconnectDevice();
+    await _connection?.close();
+    _connection = null;
   }
 }

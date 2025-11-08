@@ -46,6 +46,30 @@ class AuthService {
       );
       await _auth.signInWithCredential(credential);
       return null;
+    } on FirebaseAuthException catch (e) {
+      // Handle account exists with different credential
+      if (e.code == 'account-exists-with-different-credential') {
+        // Get the email from the error
+        final email = e.email;
+        if (email != null) {
+          // Get the list of sign-in methods for this email
+          final methods = await _auth.fetchSignInMethodsForEmail(email);
+          if (methods.isNotEmpty) {
+            String providerName = methods.first;
+            // Convert provider ID to user-friendly name
+            if (providerName == 'password') {
+              providerName = 'email/password';
+            } else if (providerName == 'google.com') {
+              providerName = 'Google';
+            } else if (providerName == 'facebook.com') {
+              providerName = 'Facebook';
+            }
+            return 'An account with this email already exists. Please sign in using $providerName instead.';
+          }
+        }
+        return 'An account with this email already exists with a different sign-in method. Please use the original sign-in method.';
+      }
+      return e.message ?? e.code;
     } catch (e) {
       return e.toString();
     }
@@ -59,6 +83,30 @@ class AuthService {
       final OAuthCredential credential = FacebookAuthProvider.credential(result.accessToken!.token);
       await _auth.signInWithCredential(credential);
       return null;
+    } on FirebaseAuthException catch (e) {
+      // Handle account exists with different credential
+      if (e.code == 'account-exists-with-different-credential') {
+        // Get the email from the error
+        final email = e.email;
+        if (email != null) {
+          // Get the list of sign-in methods for this email
+          final methods = await _auth.fetchSignInMethodsForEmail(email);
+          if (methods.isNotEmpty) {
+            String providerName = methods.first;
+            // Convert provider ID to user-friendly name
+            if (providerName == 'password') {
+              providerName = 'email/password';
+            } else if (providerName == 'google.com') {
+              providerName = 'Google';
+            } else if (providerName == 'facebook.com') {
+              providerName = 'Facebook';
+            }
+            return 'An account with this email already exists. Please sign in using $providerName instead.';
+          }
+        }
+        return 'An account with this email already exists with a different sign-in method. Please use the original sign-in method.';
+      }
+      return e.message ?? e.code;
     } catch (e) {
       return e.toString();
     }

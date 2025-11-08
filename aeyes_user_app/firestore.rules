@@ -12,9 +12,12 @@ service cloud.firestore {
     }
     
     // Users collection - users can read/write their own profile
-    // Guardians can read user profiles (they can only access users they are linked to via guardians collection queries)
+    // Guardians can read user profiles (app logic ensures only linked users are accessed)
     match /users/{userId} {
+      // Allow read: user owns it OR any authenticated user (app logic controls access)
+      // This allows guardians to read linked user profiles after querying guardians collection
       allow read: if isOwner(userId) || isAuthenticated();
+      // Only owners can create/update/delete their own profile
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if isOwner(userId);

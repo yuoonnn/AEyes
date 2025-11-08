@@ -432,6 +432,24 @@ class DatabaseService {
     });
   }
 
+  /// Delete/unlink a guardian
+  Future<void> deleteGuardian(String guardianId) async {
+    if (currentUserId == null) throw Exception('User not authenticated');
+    
+    // Verify the guardian belongs to the current user before deleting
+    final doc = await _firestore.collection('guardians').doc(guardianId).get();
+    if (!doc.exists) {
+      throw Exception('Guardian link not found');
+    }
+    
+    final data = doc.data()!;
+    if (data['user_id'] != currentUserId) {
+      throw Exception('You can only delete your own guardian links');
+    }
+    
+    await _firestore.collection('guardians').doc(guardianId).delete();
+  }
+
   /// Get latest location for a user
   Future<Map<String, dynamic>?> getLatestUserLocation(String userId) async {
     final snapshot = await _firestore
