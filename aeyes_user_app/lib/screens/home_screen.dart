@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../services/bluetooth_service.dart';
 import '../services/openai_service.dart';
 import '../widgets/main_scaffold.dart';
@@ -108,14 +109,18 @@ class _HomeScreenState extends State<HomeScreen>
                         color: Colors.white,
                       ),
                     ),
-                    title: const Text(
-                      'Your Name',
-                      style: TextStyle(
+                    title: Text(
+                      FirebaseAuth.instance.currentUser?.displayName ?? 
+                      FirebaseAuth.instance.currentUser?.email?.split('@')[0] ?? 
+                      'User',
+                      style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 18,
                       ),
                     ),
-                    subtitle: const Text('your@email.com'),
+                    subtitle: Text(
+                      FirebaseAuth.instance.currentUser?.email ?? 'No email',
+                    ),
                     trailing: IconButton(
                       icon: Icon(Icons.edit, color: green),
                       onPressed: () => Navigator.pushNamed(context, '/profile'),

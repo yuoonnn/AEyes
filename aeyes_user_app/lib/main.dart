@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:aeyes_user_app/l10n/app_localizations.dart';
+import 'package:provider/provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/home_screen.dart';
 import 'screens/settings_screen.dart';
@@ -14,6 +17,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 // === Your services ===
 import 'services/bluetooth_service.dart';
 import 'services/openai_service.dart';
+import 'services/language_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,8 +43,13 @@ void main() async {
     "", // TODO: replace with env var
   );
 
+  final languageService = LanguageService();
+
   runApp(
-    MyApp(bluetoothService: bluetoothService, openAIService: openAIService),
+    ChangeNotifierProvider.value(
+      value: languageService,
+      child: MyApp(bluetoothService: bluetoothService, openAIService: openAIService),
+    ),
   );
 }
 
@@ -64,38 +73,65 @@ class MyApp extends StatelessWidget {
     return ValueListenableBuilder<ThemeMode>(
       valueListenable: themeModeNotifier,
       builder: (context, themeMode, _) {
-        return MaterialApp(
-          title: 'AEyes User App',
-          debugShowCheckedModeBanner: false,
-          theme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-            brightness: Brightness.light,
-          ),
-          darkTheme: ThemeData(
-            colorScheme: ColorScheme.fromSeed(
-              seedColor: Colors.deepPurple,
-              brightness: Brightness.dark,
-            ),
-            brightness: Brightness.dark,
-          ),
-          themeMode: themeMode,
-          initialRoute: '/',
-          routes: {
-            '/': (context) => const RoleSelectionScreen(),
-            '/login': (context) => const LoginScreen(),
-            '/home': (context) => HomeScreen(
-              bluetoothService: bluetoothService,
-              openAIService: openAIService,
-            ),
-            '/settings': (context) => const SettingsScreen(),
-            '/profile': (context) => const ProfileScreen(),
-            '/bluetooth': (context) => BluetoothScreen(
-              bluetoothService: bluetoothService,
-              openAIService: openAIService,
-            ),
-            '/register': (context) => const RegistrationScreen(),
-            '/guardian_login': (context) => const GuardianLoginScreen(),
-            '/guardian_dashboard': (context) => const GuardianDashboardScreen(),
+        return Consumer<LanguageService>(
+          builder: (context, languageService, _) {
+            return MaterialApp(
+              key: ValueKey('material_app_${languageService.locale.languageCode}'),
+              title: 'AEyes User App',
+              debugShowCheckedModeBanner: false,
+              locale: languageService.locale,
+              localizationsDelegates: const [
+                AppLocalizations.delegate,
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: LanguageService.supportedLocales,
+              localeResolutionCallback: (locale, supportedLocales) {
+                // If locale is null, use the language service locale
+                if (locale == null) {
+                  return languageService.locale;
+                }
+                // Check if the locale is supported
+                for (var supportedLocale in supportedLocales) {
+                  if (supportedLocale.languageCode == locale.languageCode) {
+                    return supportedLocale;
+                  }
+                }
+                // Fallback to language service locale
+                return languageService.locale;
+              },
+              theme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+                brightness: Brightness.light,
+              ),
+              darkTheme: ThemeData(
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: Colors.deepPurple,
+                  brightness: Brightness.dark,
+                ),
+                brightness: Brightness.dark,
+              ),
+              themeMode: themeMode,
+              initialRoute: '/',
+              routes: {
+                '/': (context) => const RoleSelectionScreen(),
+                '/login': (context) => const LoginScreen(),
+                '/home': (context) => HomeScreen(
+                  bluetoothService: bluetoothService,
+                  openAIService: openAIService,
+                ),
+                '/settings': (context) => const SettingsScreen(),
+                '/profile': (context) => const ProfileScreen(),
+                '/bluetooth': (context) => BluetoothScreen(
+                  bluetoothService: bluetoothService,
+                  openAIService: openAIService,
+                ),
+                '/register': (context) => const RegistrationScreen(),
+                '/guardian_login': (context) => const GuardianLoginScreen(),
+                '/guardian_dashboard': (context) => const GuardianDashboardScreen(),
+              },
+            );
           },
         );
       },

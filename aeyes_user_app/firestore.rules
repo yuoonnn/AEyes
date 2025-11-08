@@ -1,0 +1,91 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper function to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Helper function to check if user owns the document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Users collection - users can read/write their own profile
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isOwner(userId);
+    }
+    
+    // Settings collection - users can read/write their own settings
+    match /settings/{settingsId} {
+      allow read: if isOwner(settingsId);
+      allow create: if isOwner(settingsId);
+      allow update: if isOwner(settingsId);
+      allow delete: if isOwner(settingsId);
+    }
+    
+    // Devices collection - users can read/write their own devices
+    match /devices/{deviceId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Locations collection - users can read/write their own locations
+    match /locations/{locationId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Detection Events collection - users can read/write their own events
+    match /detection_events/{eventId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Guardians collection - users can read/write guardians linked to them
+    match /guardians/{guardianId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Messages collection - users can read/write messages where they are the user or guardian
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || resource.data.guardian_id == request.auth.uid);
+      allow create: if isAuthenticated() && 
+        (request.resource.data.user_id == request.auth.uid || request.resource.data.guardian_id == request.auth.uid);
+      allow update: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || resource.data.guardian_id == request.auth.uid);
+      allow delete: if isAuthenticated() && 
+        (resource.data.user_id == request.auth.uid || resource.data.guardian_id == request.auth.uid);
+    }
+    
+    // Emergency Alerts collection - users can read/write their own alerts
+    match /emergency_alerts/{alertId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+    
+    // Trusted Contacts collection - users can read/write their own contacts
+    match /trusted_contacts/{contactId} {
+      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
+      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+  }
+}
+

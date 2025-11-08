@@ -1,0 +1,72 @@
+@startuml AEyes_Use_Cases
+title AEyes Use Case Diagram
+
+left to right direction
+skinparam actorStyle awesome
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam DefaultTextAlignment center
+skinparam usecase {
+  BackgroundColor #f9f9f9
+  BorderColor #666666
+}
+
+actor User as VisuallyImpaired
+actor Guardian as GuardianActor
+actor "Cloud Services" as CloudActor
+
+rectangle "AEyes System" {
+  usecase "Pair Smart Glasses" as UC_Pair
+  usecase "Real-time Scene Narration" as UC_Narration
+  usecase "Hazard Detection Alerts" as UC_Hazard
+  usecase "OCR & Currency Recognition" as UC_OCR
+  usecase "GPS Navigation Guidance" as UC_Navigation
+  usecase "Trigger Emergency Alert" as UC_Emergency
+  usecase "Share Location & Status" as UC_Share
+  usecase "Receive Guardian Voice Message" as UC_GuardianVoice
+  usecase "Manage Settings & Profiles" as UC_Settings
+  usecase "Monitor User Status" as UC_GuardianMonitor
+  usecase "Send Guardian Voice Message" as UC_GuardianSpeak
+  usecase "Sync Data via Firestore" as UC_Firestore
+  usecase "Request AI Insight" as UC_AI
+  usecase "Retrieve Maps Data" as UC_Maps
+}
+
+VisuallyImpaired --> UC_Pair
+VisuallyImpaired --> UC_Narration
+VisuallyImpaired --> UC_Hazard
+VisuallyImpaired --> UC_OCR
+VisuallyImpaired --> UC_Navigation
+VisuallyImpaired --> UC_Emergency
+VisuallyImpaired --> UC_Settings
+VisuallyImpaired --> UC_GuardianVoice
+
+GuardianActor --> UC_GuardianMonitor
+GuardianActor --> UC_GuardianSpeak
+
+UC_Emergency --> UC_Share : include
+UC_Narration --> UC_AI : include
+UC_Hazard --> UC_AI : include
+UC_OCR --> UC_AI : include
+UC_Navigation --> UC_Maps : include
+UC_GuardianMonitor --> UC_Firestore : include
+UC_GuardianSpeak --> UC_Firestore : include
+UC_Share --> UC_Firestore : include
+UC_GuardianVoice --> UC_Firestore : include
+UC_Settings --> UC_Firestore : include
+
+CloudActor --> UC_AI
+CloudActor --> UC_Maps
+CloudActor --> UC_Firestore
+
+UC_Pair ..> UC_Settings : extend
+UC_Emergency ..> UC_GuardianSpeak : extend
+
+legend right
+  = Legend =
+  include: mandatory system collaboration
+  extend: optional flow triggered by base use case
+endlegend
+
+@enduml
+

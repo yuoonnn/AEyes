@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import '../widgets/custom_button.dart';
+import '../widgets/custom_textfield.dart';
+import '../services/auth_service.dart';
 
 class GuardianLoginScreen extends StatefulWidget {
   const GuardianLoginScreen({Key? key}) : super(key: key);
@@ -18,22 +21,30 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
       isLoading = true;
       errorMessage = null;
     });
-    await Future.delayed(const Duration(seconds: 1)); // Mock delay
+    final authService = AuthService();
+    String? error = await authService.login(
+      emailController.text.trim(),
+      passwordController.text.trim(),
+    );
     setState(() {
       isLoading = false;
     });
-    if (emailController.text == 'guardian@example.com' && passwordController.text == 'password123') {
+    if (error == null) {
       Navigator.pushReplacementNamed(context, '/guardian_dashboard');
     } else {
       setState(() {
-        errorMessage = 'Invalid email or password';
+        errorMessage = error;
       });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final green = const Color(0xFF388E3C);
+    final greenAccent = const Color(0xFF66BB6A);
     return Scaffold(
+      backgroundColor: isDark ? Colors.grey[900] : Colors.white,
       appBar: AppBar(title: const Text('Guardian Login')),
       body: Center(
         child: SingleChildScrollView(
@@ -42,34 +53,99 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Text('Guardian Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 24),
-                TextField(
-                  controller: emailController,
-                  decoration: const InputDecoration(
-                    hintText: 'Email',
-                    border: OutlineInputBorder(),
+                const Text('Guardian Login', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Text(
+                  'Sign in to manage your ward',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: isDark ? Colors.grey[300] : Colors.grey[700],
                   ),
+                ),
+                const SizedBox(height: 32),
+                CustomTextField(
+                  hintText: 'Email',
+                  controller: emailController,
                 ),
                 const SizedBox(height: 16),
-                TextField(
+                CustomTextField(
+                  hintText: 'Password',
                   controller: passwordController,
                   obscureText: true,
-                  decoration: const InputDecoration(
-                    hintText: 'Password',
-                    border: OutlineInputBorder(),
-                  ),
                 ),
                 const SizedBox(height: 24),
-                isLoading
-                    ? const CircularProgressIndicator()
-                    : ElevatedButton(
-                        onPressed: _handleLogin,
-                        child: const Text('Login'),
-                      ),
+                if (isLoading)
+                  const CircularProgressIndicator()
+                else
+                  SizedBox(
+                    width: double.infinity,
+                    child: CustomButton(
+                      label: 'Login',
+                      onPressed: _handleLogin,
+                      color: green,
+                      textColor: Colors.white,
+                    ),
+                  ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButton(
+                    label: 'Sign in with Google',
+                    onPressed: () async {
+                      setState(() { isLoading = true; errorMessage = null; });
+                      final authService = AuthService();
+                      String? error = await authService.signInWithGoogle();
+                      setState(() { isLoading = false; });
+                      if (error == null) {
+                        Navigator.pushReplacementNamed(context, '/guardian_dashboard');
+                      } else {
+                        setState(() { errorMessage = error; });
+                      }
+                    },
+                    color: Colors.white,
+                    textColor: green,
+                    borderColor: greenAccent,
+                    icon: Icons.login,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButton(
+                    label: 'Sign in with Facebook',
+                    onPressed: () async {
+                      setState(() { isLoading = true; errorMessage = null; });
+                      final authService = AuthService();
+                      String? error = await authService.signInWithFacebook();
+                      setState(() { isLoading = false; });
+                      if (error == null) {
+                        Navigator.pushReplacementNamed(context, '/guardian_dashboard');
+                      } else {
+                        setState(() { errorMessage = error; });
+                      }
+                    },
+                    color: Colors.white,
+                    textColor: Colors.blueAccent,
+                    borderColor: Colors.blueAccent,
+                    icon: Icons.facebook,
+                  ),
+                ),
                 if (errorMessage != null) ...[
                   const SizedBox(height: 16),
-                  Text(errorMessage!, style: const TextStyle(color: Colors.red)),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      errorMessage!,
+                      style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                 ],
                 const SizedBox(height: 16),
                 TextButton(
@@ -77,11 +153,16 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                   child: const Text("Don't have an account? Register as Guardian"),
                 ),
                 const SizedBox(height: 16),
-                ElevatedButton.icon(
-                  icon: const Icon(Icons.arrow_back),
-                  label: const Text('Back to Role Selection'),
-                  onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
+                SizedBox(
+                  width: double.infinity,
+                  child: CustomButton(
+                    label: 'Back to Role Selection',
+                    onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
+                    color: isDark ? Colors.grey[800] : Colors.grey[200],
+                    textColor: isDark ? Colors.white : Colors.black,
+                  ),
                 ),
+                const SizedBox(height: 24),
               ],
             ),
           ),

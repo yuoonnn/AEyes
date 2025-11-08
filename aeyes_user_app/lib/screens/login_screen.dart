@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:aeyes_user_app/l10n/app_localizations.dart';
 import '../widgets/custom_button.dart';
 import '../widgets/custom_textfield.dart';
 import '../services/auth_service.dart';
@@ -40,6 +41,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = const Color(0xFF388E3C); // Pampanga State Agricultural University inspired
     final greenAccent = const Color(0xFF66BB6A);
@@ -68,7 +70,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Welcome to AEyes',
+                l10n.welcomeToAEyes,
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,
@@ -78,7 +80,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 8),
               Text(
-                'Sign in to continue',
+                l10n.signInToContinue,
                 style: TextStyle(
                   fontSize: 16,
                   color: isDark ? Colors.grey[300] : Colors.grey[700],
@@ -88,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: CustomTextField(
-                  hintText: 'Email',
+                  hintText: l10n.email,
                   controller: emailController,
                 ),
               ),
@@ -96,7 +98,7 @@ class _LoginScreenState extends State<LoginScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: CustomTextField(
-                  hintText: 'Password',
+                  hintText: l10n.password,
                   controller: passwordController,
                   obscureText: true,
                 ),
@@ -110,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: SizedBox(
                     width: double.infinity,
                     child: CustomButton(
-                      label: 'Login',
+                      label: l10n.login,
                       onPressed: _handleLogin,
                       color: green,
                       textColor: Colors.white,
@@ -123,7 +125,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: CustomButton(
-                    label: 'Sign in with Google',
+                    label: l10n.signInWithGoogle,
                     onPressed: () async {
                       setState(() { isLoading = true; errorMessage = null; });
                       final authService = AuthService();
@@ -148,7 +150,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: CustomButton(
-                    label: 'Sign in with Facebook',
+                    label: l10n.signInWithFacebook,
                     onPressed: () async {
                       setState(() { isLoading = true; errorMessage = null; });
                       final authService = AuthService();
@@ -192,7 +194,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: CustomButton(
-                    label: 'Don\'t have an account? Register',
+                    label: l10n.dontHaveAccount,
                     onPressed: () => Navigator.pushNamed(context, '/register'),
                     color: greenAccent,
                     textColor: Colors.white,
@@ -205,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: SizedBox(
                   width: double.infinity,
                   child: CustomButton(
-                    label: 'Back to Role Selection',
+                    label: l10n.backToRoleSelection,
                     onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
                     color: isDark ? Colors.grey[800] : Colors.grey[200],
                     textColor: isDark ? Colors.white : Colors.black,

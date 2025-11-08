@@ -1,0 +1,157 @@
+@startuml AEyes_Entity_Relationship_Diagram
+title AEyes Entity Relationship Diagram
+
+skinparam linetype ortho
+skinparam shadowing false
+skinparam DefaultTextAlignment center
+
+entity "User" as User {
+  * user_id : String <<PK>>
+  --
+  * email : String <<unique>>
+  * name : String
+  phone : String
+  address : String
+  role : String <<enum>> // "user" | "guardian"
+  created_at : Timestamp
+  updated_at : Timestamp
+}
+
+entity "Guardian" as Guardian {
+  * guardian_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  * guardian_email : String
+  * guardian_name : String
+  phone : String
+  relationship_status : String // "active" | "pending" | "inactive"
+  created_at : Timestamp
+}
+
+entity "Device" as Device {
+  * device_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  * device_name : String
+  * ble_mac_address : String <<unique>>
+  device_type : String // "smart_glasses"
+  battery_level : Integer
+  firmware_version : String
+  last_seen : Timestamp
+  paired_at : Timestamp
+}
+
+entity "Settings" as Settings {
+  * settings_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  tts_language : String
+  tts_rate : Double
+  tts_voice : String
+  audio_volume : Integer
+  hazard_confidence_threshold : Double
+  detection_mode : String <<enum>> // "hazard" | "ocr" | "currency" | "navigation"
+  verbosity_level : String // "minimal" | "normal" | "detailed"
+  emergency_contacts_enabled : Boolean
+  location_sharing_enabled : Boolean
+  updated_at : Timestamp
+}
+
+entity "Location" as Location {
+  * location_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  * latitude : Double
+  * longitude : Double
+  accuracy : Double
+  altitude : Double
+  address : String
+  landmark : String
+  * timestamp : Timestamp
+}
+
+entity "Message" as Message {
+  * message_id : String <<PK>>
+  * user_id : String <<FK>>
+  * guardian_id : String <<FK>>
+  --
+  * message_type : String <<enum>> // "voice" | "text" | "alert"
+  * content : String // text or audio URL
+  * direction : String <<enum>> // "guardian_to_user" | "user_to_guardian"
+  is_read : Boolean
+  * created_at : Timestamp
+}
+
+entity "DetectionEvent" as DetectionEvent {
+  * event_id : String <<PK>>
+  * user_id : String <<FK>>
+  device_id : String <<FK>>
+  --
+  * event_type : String <<enum>> // "hazard" | "ocr" | "currency" | "scene_narration"
+  * confidence : Double
+  detected_label : String
+  detected_value : String // for currency/OCR
+  image_reference : String // URL or local path
+  location_id : String <<FK>>
+  * timestamp : Timestamp
+}
+
+entity "EmergencyAlert" as EmergencyAlert {
+  * alert_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  * alert_type : String <<enum>> // "manual" | "battery_low" | "device_disconnect"
+  * severity : String <<enum>> // "low" | "medium" | "high" | "critical"
+  location_id : String <<FK>>
+  sms_sent : Boolean
+  guardian_notified : Boolean
+  * triggered_at : Timestamp
+  resolved_at : Timestamp
+}
+
+entity "TrustedContact" as TrustedContact {
+  * contact_id : String <<PK>>
+  * user_id : String <<FK>>
+  --
+  * contact_name : String
+  * phone_number : String
+  email : String
+  relationship : String
+  sms_enabled : Boolean
+  created_at : Timestamp
+}
+
+' Relationships
+User ||--o{ Guardian : "has guardians"
+User ||--|| Settings : "has settings"
+User ||--o{ Device : "owns devices"
+User ||--o{ Location : "has locations"
+User ||--o{ Message : "sends/receives"
+Guardian ||--o{ Message : "sends/receives"
+User ||--o{ DetectionEvent : "triggers"
+Device ||--o{ DetectionEvent : "generates"
+User ||--o{ EmergencyAlert : "triggers"
+User ||--o{ TrustedContact : "has contacts"
+Location ||--o{ DetectionEvent : "located at"
+Location ||--o{ EmergencyAlert : "alerted from"
+
+note right of User
+  Primary actor in the system.
+  Can be either a visually
+  impaired user or a guardian.
+end note
+
+note right of Message
+  Guardian voice messages
+  are stored here and synced
+  via Firestore realtime listeners.
+end note
+
+note right of DetectionEvent
+  All AI detection results
+  (hazards, OCR, currency)
+  are logged here for
+  analytics and history.
+end note
+
+@enduml

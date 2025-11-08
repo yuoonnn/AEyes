@@ -1,0 +1,88 @@
+@startuml AEyes_Data_Flow_Diagram
+title AEyes Data Flow Diagram
+
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam DefaultTextAlignment center
+skinparam nodesep 100
+skinparam ranksep 120
+
+left to right direction
+
+' External Entities - Left
+rectangle "User" as UserActor #LightGreen
+rectangle "Guardian" as GuardianActor #LightGreen
+rectangle "Smart Glasses" as Glasses #LightBlue
+
+' External APIs - Right
+rectangle "Firebase Auth" as FirebaseAuth #LightYellow
+rectangle "OpenAI API" as OpenAI #LightYellow
+rectangle "Maps API" as MapsAPI #LightYellow
+
+' Data Store - Top Center
+database "Firestore" as FirestoreDB #LightCoral
+
+' Main Processes - Center
+rectangle "AEyes Mobile App" as App {
+  component "0.0\nAuth Manager" as AuthProc
+  component "1.0\nBLE Manager" as BLEProc
+  component "2.0\nImage Processor" as ImageProc
+  component "3.0\nAI Client" as AIClient
+  component "4.0\nTTS Engine" as TTSProc
+  component "5.0\nGPS Service" as GPSProc
+  component "6.0\nData Sync" as SyncProc
+  component "7.0\nAlert Handler" as AlertProc
+}
+
+' === AUTHENTICATION FLOW ===
+UserActor --> AuthProc : login/register
+GuardianActor --> AuthProc : login/register
+AuthProc --> FirebaseAuth : credentials
+FirebaseAuth --> AuthProc : token
+AuthProc --> FirestoreDB : profile
+AuthProc --> SyncProc : auth data
+SyncProc --> AuthProc : validate token
+
+' === DEVICE PROCESSING FLOW (Linear) ===
+Glasses --> BLEProc : sensor data
+BLEProc --> ImageProc : image
+ImageProc --> AIClient : processed
+AIClient --> OpenAI : image/prompt
+OpenAI --> AIClient : results
+AIClient --> TTSProc : text
+TTSProc --> BLEProc : audio
+BLEProc --> Glasses : audio feedback
+
+' === NAVIGATION FLOW ===
+UserActor --> GPSProc : request
+GPSProc --> MapsAPI : geocoding
+MapsAPI --> GPSProc : directions
+GPSProc --> TTSProc : prompts
+GPSProc --> SyncProc : location
+
+' === GUARDIAN COMMUNICATION ===
+GuardianActor --> FirestoreDB : messages
+FirestoreDB --> SyncProc : messages
+SyncProc --> TTSProc : playback
+
+' === EMERGENCY FLOW ===
+UserActor --> AlertProc : trigger
+AlertProc --> SyncProc : alert
+SyncProc --> FirestoreDB : alert
+FirestoreDB --> GuardianActor : notification
+AlertProc --> UserActor : SMS
+
+' === DATA SYNC (Central Hub) ===
+AIClient --> SyncProc : events
+BLEProc --> SyncProc : status
+UserActor --> SyncProc : settings
+SyncProc --> FirestoreDB : all data
+FirestoreDB --> SyncProc : updates
+
+legend bottom
+  = Legend =
+  Green: Users | Blue: Devices | Yellow: APIs | Red: Database
+endlegend
+
+@enduml
