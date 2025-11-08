@@ -32,7 +32,12 @@ class AuthService {
   // Google Sign-In
   Future<String?> signInWithGoogle() async {
     try {
-      final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
+      // Sign out from Google Sign-In first to force account selection
+      final googleSignIn = GoogleSignIn();
+      await googleSignIn.signOut();
+      
+      // Now sign in, which will prompt for account selection
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
       if (googleUser == null) return 'Sign in aborted';
       final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
       final credential = GoogleAuthProvider.credential(

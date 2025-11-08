@@ -69,10 +69,26 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
 
     try {
       // Load guardian profile
-      final profile = await _databaseService.getUserProfile();
+      var profile = await _databaseService.getUserProfile();
+      
+      // If profile doesn't exist, create one (for guardians who logged in with Google/Facebook)
+      if (profile == null) {
+        print('Guardian profile not found, creating one...');
+        await _databaseService.saveUserProfile(
+          app_user.User(
+            id: user.uid,
+            name: user.displayName ?? user.email?.split('@')[0] ?? 'Guardian',
+            email: user.email ?? '',
+            phone: user.phoneNumber,
+            role: 'guardian',
+          ),
+        );
+        profile = await _databaseService.getUserProfile();
+      }
       
       final guardianEmail = user.email ?? '';
-      print('Guardian email: $guardianEmail');
+      print('Guardian email from Firebase Auth: $guardianEmail');
+      print('Guardian email normalized: ${guardianEmail.trim().toLowerCase()}');
       
       // Load linked users
       final users = await _databaseService.getLinkedUsersForGuardian(guardianEmail);
@@ -81,6 +97,13 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       // Load pending link requests
       final pending = await _databaseService.getPendingLinkRequests(guardianEmail);
       print('Found ${pending.length} pending link requests');
+      
+      if (pending.isEmpty && guardianEmail.isNotEmpty) {
+        print('WARNING: No pending requests found. Check:');
+        print('1. Firestore rules are deployed');
+        print('2. Email in guardian document matches: ${guardianEmail.trim().toLowerCase()}');
+        print('3. relationship_status is "pending"');
+      }
       
       setState(() {
         guardianProfile = profile;
@@ -93,8 +116,26 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
         }
         isLoading = false;
       });
-    } catch (e) {
-      print('Error loading guardian profile: $e');
+    } catch (e, stackTrace) {
+      print('❌ ERROR loading guardian profile: $e');
+      print('Stack trace: $stackTrace');
+      
+      // Show error to user
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading profile: $e'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Retry',
+              textColor: Colors.white,
+              onPressed: () => _loadProfile(),
+            ),
+          ),
+        );
+      }
+      
       setState(() => isLoading = false);
     }
   }

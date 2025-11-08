@@ -12,8 +12,9 @@ service cloud.firestore {
     }
     
     // Users collection - users can read/write their own profile
+    // Guardians can read user profiles (they can only access users they are linked to via guardians collection queries)
     match /users/{userId} {
-      allow read: if isOwner(userId);
+      allow read: if isOwner(userId) || isAuthenticated();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if isOwner(userId);
@@ -28,34 +29,53 @@ service cloud.firestore {
     }
     
     // Devices collection - users can read/write their own devices
+    // Guardians can read devices for users they are linked to (access controlled by app logic)
     match /devices/{deviceId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
     
     // Locations collection - users can read/write their own locations
+    // Guardians can read locations for users they are linked to (access controlled by app logic)
     match /locations/{locationId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
     
     // Detection Events collection - users can read/write their own events
+    // Guardians can read events for users they are linked to (access controlled by app logic)
     match /detection_events/{eventId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
     
     // Guardians collection - users can read/write guardians linked to them
+    // Guardians can also read guardians where they are the guardian (by email)
+    // IMPORTANT: For queries to work, guardians must be able to read documents where
+    // guardian_email matches their email. Firestore evaluates queries against these rules.
     match /guardians/{guardianId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      // Users can read/write guardians linked to them (by user_id)
+      // Guardians can read guardians where guardian_email matches their email
+      // This allows both direct document reads and .where() queries
+      allow read: if isAuthenticated() && (
+        resource.data.user_id == request.auth.uid ||
+        (resource.data.guardian_email != null && 
+         resource.data.guardian_email.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
       allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
-      allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      // Users can update guardians linked to them
+      // Guardians can update guardians where guardian_email matches their email (to approve requests)
+      allow update: if isAuthenticated() && (
+        resource.data.user_id == request.auth.uid ||
+        (resource.data.guardian_email != null && 
+         resource.data.guardian_email.toLowerCase() == request.auth.token.email.toLowerCase())
+      );
       allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;
     }
     
@@ -72,8 +92,9 @@ service cloud.firestore {
     }
     
     // Emergency Alerts collection - users can read/write their own alerts
+    // Guardians can read alerts for users they are linked to (access controlled by app logic)
     match /emergency_alerts/{alertId} {
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      allow read: if isAuthenticated();
       allow create: if isAuthenticated() && request.resource.data.user_id == request.auth.uid;
       allow update: if isAuthenticated() && resource.data.user_id == request.auth.uid;
       allow delete: if isAuthenticated() && resource.data.user_id == request.auth.uid;

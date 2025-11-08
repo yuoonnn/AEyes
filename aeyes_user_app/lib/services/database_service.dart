@@ -239,101 +239,189 @@ class DatabaseService {
 
   /// Get users linked to a guardian (by guardian email)
   Future<List<Map<String, dynamic>>> getLinkedUsersForGuardian(String guardianEmail) async {
-    // Normalize email to lowercase for consistent matching
-    final normalizedEmail = guardianEmail.trim().toLowerCase();
-    
-    final snapshot = await _firestore
-        .collection('guardians')
-        .where('guardian_email', isEqualTo: normalizedEmail)
-        .where('relationship_status', isEqualTo: 'active')
-        .get();
-    
-    if (snapshot.docs.isEmpty) return [];
-    
-    // Get user IDs
-    final userIds = snapshot.docs.map((doc) => doc.data()['user_id'] as String).toList();
-    
-    // Get user profiles
-    final users = <Map<String, dynamic>>[];
-    for (final userId in userIds) {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        users.add({
-          'user_id': userId,
-          ...userDoc.data()!,
-        });
-      }
+    if (guardianEmail.isEmpty) {
+      print('Guardian email is empty');
+      return [];
     }
     
-    return users;
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = guardianEmail.trim().toLowerCase();
+    print('=== Searching for linked users ===');
+    print('Guardian email: $guardianEmail');
+    print('Normalized email: $normalizedEmail');
+    
+    try {
+      final snapshot = await _firestore
+          .collection('guardians')
+          .where('guardian_email', isEqualTo: normalizedEmail)
+          .where('relationship_status', isEqualTo: 'active')
+          .get();
+      
+      print('Query result: Found ${snapshot.docs.length} active guardian links');
+      
+      if (snapshot.docs.isEmpty) {
+        print('No active links found for this guardian');
+        return [];
+      }
+      
+      // Get user IDs
+      final userIds = snapshot.docs.map((doc) {
+        final data = doc.data();
+        final userId = data['user_id'] as String?;
+        if (userId == null) {
+          print('⚠️ Guardian document ${doc.id} has no user_id');
+        }
+        return userId;
+      }).where((id) => id != null).cast<String>().toList();
+      
+      print('Found ${userIds.length} user IDs to fetch');
+      
+      // Get user profiles
+      final users = <Map<String, dynamic>>[];
+      for (final userId in userIds) {
+        try {
+          final userDoc = await _firestore.collection('users').doc(userId).get();
+          if (userDoc.exists) {
+            users.add({
+              'user_id': userId,
+              ...userDoc.data()!,
+            });
+            print('✓ Added linked user: ${userDoc.data()?['name'] ?? userId}');
+          } else {
+            print('⚠️ User document not found for userId: $userId');
+          }
+        } catch (e) {
+          print('Error fetching user $userId: $e');
+        }
+      }
+      
+      print('=== Returning ${users.length} linked users ===');
+      return users;
+    } catch (e, stackTrace) {
+      print('❌ ERROR in getLinkedUsersForGuardian: $e');
+      print('Stack trace: $stackTrace');
+      print('This might be a Firestore rules issue. Make sure rules are deployed.');
+      rethrow;
+    }
   }
 
   /// Get pending link requests for a guardian
   Future<List<Map<String, dynamic>>> getPendingLinkRequests(String guardianEmail) async {
-    if (guardianEmail.isEmpty) return [];
+    if (guardianEmail.isEmpty) {
+      print('Guardian email is empty');
+      return [];
+    }
     
     // Normalize email to lowercase for consistent matching
     final normalizedEmail = guardianEmail.trim().toLowerCase();
-    print('Searching for pending requests with email: $normalizedEmail');
+    print('=== Searching for pending requests ===');
+    print('Guardian email: $guardianEmail');
+    print('Normalized email: $normalizedEmail');
     
-    // First try with normalized email (for new records)
-    var snapshot = await _firestore
-        .collection('guardians')
-        .where('guardian_email', isEqualTo: normalizedEmail)
-        .where('relationship_status', isEqualTo: 'pending')
-        .get();
-    
-    print('Found ${snapshot.docs.length} pending requests with normalized email');
-    
-    // If no results, try fetching all pending and filtering manually
-    // (for old records that might have mixed case email)
-    List<QueryDocumentSnapshot> matchingDocs = snapshot.docs;
-    
-    if (matchingDocs.isEmpty) {
-      print('No results with normalized email, checking all pending requests...');
-      final allPending = await _firestore
+    try {
+      // First try with normalized email (for new records)
+      print('Querying guardians collection with normalized email...');
+      var snapshot = await _firestore
           .collection('guardians')
+          .where('guardian_email', isEqualTo: normalizedEmail)
           .where('relationship_status', isEqualTo: 'pending')
           .get();
       
-      print('Found ${allPending.docs.length} total pending requests');
+      print('Query result: Found ${snapshot.docs.length} pending requests with normalized email');
       
-      // Filter by email (case-insensitive)
-      matchingDocs = allPending.docs.where((doc) {
-        final email = (doc.data() as Map<String, dynamic>)['guardian_email'] as String?;
-        final matches = email?.trim().toLowerCase() == normalizedEmail;
-        if (matches) {
-          print('Found matching request with email: $email');
+      // If no results, try fetching all pending and filtering manually
+      // (for old records that might have mixed case email)
+      List<QueryDocumentSnapshot> matchingDocs = snapshot.docs;
+      
+      if (matchingDocs.isEmpty) {
+        print('No results with normalized email, trying alternative query...');
+        try {
+          // Try querying all pending first
+          final allPending = await _firestore
+              .collection('guardians')
+              .where('relationship_status', isEqualTo: 'pending')
+              .get();
+          
+          print('Found ${allPending.docs.length} total pending requests in database');
+          
+          // Debug: Print all pending emails
+          for (final doc in allPending.docs) {
+            final data = doc.data() as Map<String, dynamic>;
+            final email = data['guardian_email'] as String?;
+            print('  - Pending request email: $email (normalized: ${email?.trim().toLowerCase()})');
+          }
+          
+          // Filter by email (case-insensitive)
+          matchingDocs = allPending.docs.where((doc) {
+            final data = doc.data() as Map<String, dynamic>;
+            final email = data['guardian_email'] as String?;
+            if (email == null) return false;
+            final emailNormalized = email.trim().toLowerCase();
+            final matches = emailNormalized == normalizedEmail;
+            if (matches) {
+              print('✓ Found matching request! Email: $email, Guardian ID: ${doc.id}');
+            }
+            return matches;
+          }).toList();
+          
+          print('Filtered to ${matchingDocs.length} matching requests');
+        } catch (e) {
+          print('Error in alternative query: $e');
+          // If query fails, try to read individual documents
+          // This is a fallback if rules don't allow queries
+          print('Attempting to read guardians collection directly...');
         }
-        return matches;
-      }).toList();
-      
-      print('Filtered to ${matchingDocs.length} matching requests');
-    }
-    
-    if (matchingDocs.isEmpty) return [];
-    
-    // Get user IDs and link info
-    final requests = <Map<String, dynamic>>[];
-    for (final doc in matchingDocs) {
-      final data = doc.data() as Map<String, dynamic>;
-      final userId = data['user_id'] as String;
-      final userDoc = await _firestore.collection('users').doc(userId).get();
-      if (userDoc.exists) {
-        requests.add({
-          'guardian_id': doc.id,
-          'user_id': userId,
-          'guardian_name': data['guardian_name'],
-          'created_at': data['created_at'],
-          ...userDoc.data()!,
-        });
-      } else {
-        print('User document not found for userId: $userId');
       }
+      
+      if (matchingDocs.isEmpty) {
+        print('⚠️ No matching pending requests found');
+        print('Possible reasons:');
+        print('  1. Firestore rules not deployed');
+        print('  2. Email mismatch (check case sensitivity)');
+        print('  3. No pending requests exist for this email');
+        return [];
+      }
+      
+      // Get user IDs and link info
+      final requests = <Map<String, dynamic>>[];
+      for (final doc in matchingDocs) {
+        try {
+          final data = doc.data() as Map<String, dynamic>;
+          final userId = data['user_id'] as String?;
+          
+          if (userId == null) {
+            print('⚠️ Guardian document ${doc.id} has no user_id');
+            continue;
+          }
+          
+          print('Fetching user profile for userId: $userId');
+          final userDoc = await _firestore.collection('users').doc(userId).get();
+          
+          if (userDoc.exists) {
+            requests.add({
+              'guardian_id': doc.id,
+              'user_id': userId,
+              'guardian_name': data['guardian_name'] ?? 'Unknown',
+              'created_at': data['created_at'],
+              ...userDoc.data()!,
+            });
+            print('✓ Added request for user: ${userDoc.data()?['name'] ?? userId}');
+          } else {
+            print('⚠️ User document not found for userId: $userId');
+          }
+        } catch (e) {
+          print('Error processing guardian document ${doc.id}: $e');
+        }
+      }
+      
+      print('=== Returning ${requests.length} valid pending requests ===');
+      return requests;
+    } catch (e, stackTrace) {
+      print('❌ ERROR in getPendingLinkRequests: $e');
+      print('Stack trace: $stackTrace');
+      print('This might be a Firestore rules issue. Make sure rules are deployed.');
+      rethrow;
     }
-    
-    print('Returning ${requests.length} valid pending requests');
-    return requests;
   }
 
   /// Approve a pending link request

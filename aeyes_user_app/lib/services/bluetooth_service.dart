@@ -14,39 +14,109 @@ class BluetoothService {
   bool get isConnected => _connectedDevice != null;
   ble.BluetoothDevice? get connectedDevice => _connectedDevice;
 
+  // Check if Bluetooth is enabled
+  Future<bool> isBluetoothEnabled() async {
+    try {
+      final state = await ble.FlutterBluePlus.adapterState.first;
+      return state == ble.BluetoothAdapterState.on;
+    } catch (e) {
+      print('Error checking Bluetooth state: $e');
+      return false;
+    }
+  }
+
+  // Request Bluetooth permissions (Android 12+)
+  Future<bool> requestPermissions() async {
+    try {
+      // Check if Bluetooth is available
+      if (!await ble.FlutterBluePlus.isSupported) {
+        print('Bluetooth not supported on this device');
+        return false;
+      }
+
+      // Check if Bluetooth is enabled
+      final isEnabled = await isBluetoothEnabled();
+      if (!isEnabled) {
+        print('Bluetooth is not enabled');
+        return false;
+      }
+
+      return true;
+    } catch (e) {
+      print('Error requesting permissions: $e');
+      return false;
+    }
+  }
+
   // Scan for BLE devices ONLY (flutter_blue_plus only scans BLE, not classic Bluetooth)
   // This is perfect for ESP32 which uses BLE
-  Stream<List<ble.BluetoothDevice>> scanForDevices({Duration? timeout}) {
+  Stream<List<ble.BluetoothDevice>> scanForDevices({Duration? timeout}) async* {
+    // Check permissions and Bluetooth state first
+    final hasPermissions = await requestPermissions();
+    if (!hasPermissions) {
+      print('Bluetooth permissions not granted or Bluetooth not enabled');
+      return;
+    }
+
     final controller = StreamController<List<ble.BluetoothDevice>>();
     final devices = <ble.BluetoothDevice>[];
+    final deviceMap = <String, ble.BluetoothDevice>{};
 
     _scanSubscription = ble.FlutterBluePlus.scanResults.listen((results) {
       for (final result in results) {
+        final deviceId = result.device.remoteId.toString();
+        
         // Avoid duplicates
-        if (!devices.any((device) => device.remoteId == result.device.remoteId)) {
+        if (!deviceMap.containsKey(deviceId)) {
           // flutter_blue_plus only returns BLE devices, so all results are BLE
           devices.add(result.device);
+          deviceMap[deviceId] = result.device;
+          
+          // Sort by RSSI (stronger signal first) - helps find ESP32
+          devices.sort((a, b) {
+            final aResult = results.firstWhere((r) => r.device.remoteId == a.remoteId, orElse: () => results.first);
+            final bResult = results.firstWhere((r) => r.device.remoteId == b.remoteId, orElse: () => results.first);
+            return (bResult.rssi).compareTo(aResult.rssi);
+          });
+          
           controller.add(List.from(devices));
+          
+          // Debug: Print found devices
+          final deviceName = result.device.platformName.isNotEmpty 
+              ? result.device.platformName 
+              : 'Unknown Device';
+          print('Found BLE device: $deviceName (${result.device.remoteId}), RSSI: ${result.rssi}');
         }
       }
     });
 
-    // Start scanning for BLE devices only
-    // Note: flutter_blue_plus.startScan() only scans BLE devices by default
-    // It will NOT scan classic Bluetooth devices (like speakers, headphones, etc.)
-    ble.FlutterBluePlus.startScan(
-      timeout: timeout ?? const Duration(seconds: 10),
-      // Optional: Filter by services if you know ESP32's service UUID
-      // withServices: [ble.Guid('your-esp32-service-uuid')],
-    );
+    try {
+      // Start scanning for BLE devices only
+      // Note: flutter_blue_plus.startScan() only scans BLE devices by default
+      // It will NOT scan classic Bluetooth devices (like speakers, headphones, etc.)
+      // Increased timeout to 15 seconds for better ESP32 detection
+      await ble.FlutterBluePlus.startScan(
+        timeout: timeout ?? const Duration(seconds: 15),
+        // Don't filter by services - show all BLE devices to help debug
+        // Optional: Filter by services if you know ESP32's service UUID
+        // withServices: [ble.Guid('your-esp32-service-uuid')],
+      );
+      
+      print('Started BLE scan (timeout: ${timeout ?? const Duration(seconds: 15)})');
+    } catch (e) {
+      print('Error starting scan: $e');
+      controller.addError(e);
+      return;
+    }
 
     // Stop scanning after timeout and close stream
-    Future.delayed(timeout ?? const Duration(seconds: 10), () {
+    Future.delayed(timeout ?? const Duration(seconds: 15), () {
       stopScan();
       controller.close();
+      print('Scan completed. Found ${devices.length} devices');
     });
 
-    return controller.stream;
+    yield* controller.stream;
   }
 
   // Stop scanning
@@ -87,12 +157,24 @@ class BluetoothService {
     final devices = <Map<String, dynamic>>[];
     
     try {
+      // Check permissions first
+      final hasPermissions = await requestPermissions();
+      if (!hasPermissions) {
+        print('Cannot scan: Bluetooth permissions not granted or Bluetooth not enabled');
+        return devices;
+      }
+
       // Start scan for BLE devices only (classic Bluetooth devices are excluded)
-      await ble.FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
-      await Future.delayed(const Duration(seconds: 2));
+      // Increased timeout for better ESP32 detection
+      await ble.FlutterBluePlus.startScan(timeout: const Duration(seconds: 10));
+      
+      // Wait longer to collect more devices
+      await Future.delayed(const Duration(seconds: 5));
       
       final results = ble.FlutterBluePlus.scanResults;
       final resultsList = await results.first;
+      
+      print('Scan results: ${resultsList.length} devices found');
       
       for (final result in resultsList) {
         final device = result.device;
@@ -106,7 +188,13 @@ class BluetoothService {
           'rssi': result.rssi,
           'device': device,
         });
+        
+        // Debug: Print device info
+        print('Device: $deviceName, ID: ${device.remoteId}, RSSI: ${result.rssi}');
       }
+      
+      // Sort by RSSI (stronger signal first)
+      devices.sort((a, b) => (b['rssi'] as int).compareTo(a['rssi'] as int));
       
       await ble.FlutterBluePlus.stopScan();
     } catch (e) {
