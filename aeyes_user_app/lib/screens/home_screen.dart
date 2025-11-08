@@ -37,14 +37,15 @@ class _HomeScreenState extends State<HomeScreen>
 
     // Hook into Bluetooth image receiving
     widget.bluetoothService.onImageReceived = (Uint8List image) async {
-      setState(() => analysisResult = "Analyzing...");
-      try {
-        final result = await widget.openAIService.analyzeImage(image);
-        setState(() => analysisResult = result);
-      } catch (e) {
-        setState(() => analysisResult = "Error: $e");
-      }
-    };
+  // Handle received image data
+  // You can process the image with OpenAI service here
+  // await widget.openAIService.analyzeImage(image);
+  if (mounted) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Received image: ${image.length} bytes')),
+    );
+  }
+};
 
     // Start background location tracking
     _startLocationTracking();

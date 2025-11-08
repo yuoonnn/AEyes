@@ -316,7 +316,7 @@ class DatabaseService {
     // Get user IDs and link info
     final requests = <Map<String, dynamic>>[];
     for (final doc in matchingDocs) {
-      final data = doc.data();
+      final data = doc.data() as Map<String, dynamic>;
       final userId = data['user_id'] as String;
       final userDoc = await _firestore.collection('users').doc(userId).get();
       if (userDoc.exists) {

@@ -121,12 +121,14 @@ class MyApp extends StatelessWidget {
                 return appLocale;
               },
               theme: ThemeData(
-                colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+                colorScheme: ColorScheme.fromSeed(
+                  seedColor: const Color(0xFF388E3C), // Green color to match app design
+                ),
                 brightness: Brightness.light,
               ),
               darkTheme: ThemeData(
                 colorScheme: ColorScheme.fromSeed(
-                  seedColor: Colors.deepPurple,
+                  seedColor: const Color(0xFF388E3C), // Green color to match app design
                   brightness: Brightness.dark,
                 ),
                 brightness: Brightness.dark,
