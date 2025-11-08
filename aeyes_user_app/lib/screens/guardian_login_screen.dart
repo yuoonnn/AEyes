@@ -149,7 +149,7 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                 ],
                 const SizedBox(height: 16),
                 TextButton(
-                  onPressed: () {}, // To be implemented: guardian registration
+                  onPressed: () => Navigator.pushNamed(context, '/guardian_register'),
                   child: const Text("Don't have an account? Register as Guardian"),
                 ),
                 const SizedBox(height: 16),

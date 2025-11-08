@@ -70,10 +70,16 @@ class DatabaseService {
     if (!doc.exists) return null;
     
     final data = doc.data()!;
+    // Validate ttsLanguage - if it's ceb or pam (removed languages), use 'en'
+    final savedLanguage = data['tts_language'] ?? 'en';
+    final validLanguage = (savedLanguage == 'en' || savedLanguage == 'tl') 
+        ? savedLanguage 
+        : 'en';
+    
     return app_settings.Settings(
       settingsId: data['settings_id'] ?? currentUserId!,
       userId: data['user_id'] ?? currentUserId!,
-      ttsLanguage: data['tts_language'] ?? 'en',
+      ttsLanguage: validLanguage,
       ttsRate: data['tts_rate'] ?? 0.5,
       ttsVoice: data['tts_voice'] ?? 'default',
       audioVolume: data['audio_volume'] ?? 50,
@@ -226,6 +232,177 @@ class DatabaseService {
       'guardian_id': doc.id,
       ...doc.data(),
     }).toList();
+  }
+
+  /// Get users linked to a guardian (by guardian email)
+  Future<List<Map<String, dynamic>>> getLinkedUsersForGuardian(String guardianEmail) async {
+    final snapshot = await _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: guardianEmail)
+        .where('relationship_status', isEqualTo: 'active')
+        .get();
+    
+    if (snapshot.docs.isEmpty) return [];
+    
+    // Get user IDs
+    final userIds = snapshot.docs.map((doc) => doc.data()['user_id'] as String).toList();
+    
+    // Get user profiles
+    final users = <Map<String, dynamic>>[];
+    for (final userId in userIds) {
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        users.add({
+          'user_id': userId,
+          ...userDoc.data()!,
+        });
+      }
+    }
+    
+    return users;
+  }
+
+  /// Get latest location for a user
+  Future<Map<String, dynamic>?> getLatestUserLocation(String userId) async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+    
+    if (snapshot.docs.isEmpty) return null;
+    
+    return {
+      'location_id': snapshot.docs.first.id,
+      ...snapshot.docs.first.data(),
+    };
+  }
+
+  /// Get latest location stream for a user (real-time)
+  Stream<DocumentSnapshot?> getLatestUserLocationStream(String userId) {
+    return _firestore
+        .collection('locations')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.isNotEmpty ? snapshot.docs.first : null);
+  }
+
+  /// Get alerts for a user
+  Future<List<Map<String, dynamic>>> getUserAlerts(String userId) async {
+    final snapshot = await _firestore
+        .collection('emergency_alerts')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('triggered_at', descending: true)
+        .limit(10)
+        .get();
+    
+    return snapshot.docs.map((doc) => {
+      'alert_id': doc.id,
+      ...doc.data(),
+    }).toList();
+  }
+
+  /// Get alerts stream for a user (real-time)
+  Stream<QuerySnapshot> getUserAlertsStream(String userId) {
+    return _firestore
+        .collection('emergency_alerts')
+        .where('user_id', isEqualTo: userId)
+        .where('guardian_notified', isEqualTo: false)
+        .orderBy('triggered_at', descending: true)
+        .limit(10)
+        .snapshots();
+  }
+
+  /// Acknowledge an alert
+  Future<void> acknowledgeAlert(String alertId) async {
+    await _firestore.collection('emergency_alerts').doc(alertId).update({
+      'guardian_notified': true,
+      'resolved_at': FieldValue.serverTimestamp(),
+    });
+  }
+
+  /// Get device status for a user
+  Future<Map<String, dynamic>?> getUserDeviceStatus(String userId) async {
+    final snapshot = await _firestore
+        .collection('devices')
+        .where('user_id', isEqualTo: userId)
+        .limit(1)
+        .get();
+    
+    if (snapshot.docs.isEmpty) return null;
+    
+    return {
+      'device_id': snapshot.docs.first.id,
+      ...snapshot.docs.first.data(),
+    };
+  }
+
+  /// Get device status stream for a user (real-time)
+  Stream<DocumentSnapshot?> getUserDeviceStatusStream(String userId) {
+    return _firestore
+        .collection('devices')
+        .where('user_id', isEqualTo: userId)
+        .limit(1)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.isNotEmpty ? snapshot.docs.first : null);
+  }
+
+  /// Get latest detection event for a user
+  Future<Map<String, dynamic>?> getLatestDetectionEvent(String userId) async {
+    final snapshot = await _firestore
+        .collection('detection_events')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(1)
+        .get();
+    
+    if (snapshot.docs.isEmpty) return null;
+    
+    return {
+      'event_id': snapshot.docs.first.id,
+      ...snapshot.docs.first.data(),
+    };
+  }
+
+  /// Send message from guardian to user
+  Future<void> sendMessageToUser({
+    required String userId,
+    required String messageType,
+    required String content,
+  }) async {
+    if (currentUserId == null) throw Exception('Guardian not authenticated');
+    
+    // Find guardian ID by email
+    final user = _auth.currentUser;
+    if (user?.email == null) throw Exception('Guardian email not found');
+    
+    final guardiansSnapshot = await _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: user!.email)
+        .where('user_id', isEqualTo: userId)
+        .limit(1)
+        .get();
+    
+    if (guardiansSnapshot.docs.isEmpty) {
+      throw Exception('Guardian not linked to this user');
+    }
+    
+    final guardianId = guardiansSnapshot.docs.first.id;
+    
+    final messageId = _firestore.collection('messages').doc().id;
+    await _firestore.collection('messages').doc(messageId).set({
+      'message_id': messageId,
+      'user_id': userId,
+      'guardian_id': guardianId,
+      'message_type': messageType,
+      'content': content,
+      'direction': 'guardian_to_user',
+      'is_read': false,
+      'created_at': FieldValue.serverTimestamp(),
+    });
   }
 
   // ========== MESSAGE OPERATIONS ==========

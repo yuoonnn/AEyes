@@ -1,7 +1,7 @@
 class Settings {
   final String settingsId;
   final String userId;
-  final String ttsLanguage; // Language code (en, tl, ceb, pam)
+  final String ttsLanguage; // Language code (en, tl)
   final double ttsRate; // 0.0 to 1.0
   final String ttsVoice;
   final int audioVolume; // 0 to 100 (TTS Volume)

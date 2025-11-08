@@ -76,18 +76,42 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   /// 🔍 Monitors Bluetooth state & permission changes
   void _monitorBluetoothStatus() {
     flutter_blue.FlutterBluePlus.adapterState.listen((state) async {
-      final permStatus = await Permission.bluetoothScan.status;
+      final scanStatus = await Permission.bluetoothScan.status;
+      final connectStatus = await Permission.bluetoothConnect.status;
+      final locationStatus = await Permission.location.status;
+      
+      final hasAllPermissions = scanStatus.isGranted && 
+                                connectStatus.isGranted && 
+                                locationStatus.isGranted;
+      
       setState(() {
         isBluetoothOn = state == flutter_blue.BluetoothAdapterState.on;
-        hasPermission = permStatus.isGranted;
+        hasPermission = hasAllPermissions;
       });
 
       if (!isBluetoothOn) {
         _showBluetoothAlert("Bluetooth is turned OFF. Please enable it.");
-      } else if (!hasPermission) {
-        _showBluetoothAlert("Bluetooth permission not granted.");
+      } else if (!hasAllPermissions) {
+        _requestBluetoothPermissions();
       }
     });
+  }
+
+  /// Request Bluetooth permissions
+  Future<void> _requestBluetoothPermissions() async {
+    final scanStatus = await Permission.bluetoothScan.request();
+    final connectStatus = await Permission.bluetoothConnect.request();
+    final locationStatus = await Permission.location.request();
+    
+    setState(() {
+      hasPermission = scanStatus.isGranted && 
+                     connectStatus.isGranted && 
+                     locationStatus.isGranted;
+    });
+    
+    if (!hasPermission) {
+      _showBluetoothAlert("Bluetooth permissions are required. Please grant them in app settings.");
+    }
   }
 
   /// 🔔 Alert + optional TTS
@@ -112,6 +136,20 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
 
   /// ⚙️ Try scanning (BluetoothService already checks internally)
   Future<void> _scanDevices() async {
+    // Check and request permissions first
+    if (!hasPermission) {
+      await _requestBluetoothPermissions();
+      if (!hasPermission) {
+        _showBluetoothAlert("Bluetooth permissions are required to scan for devices.");
+        return;
+      }
+    }
+
+    if (!isBluetoothOn) {
+      _showBluetoothAlert("Please turn on Bluetooth first.");
+      return;
+    }
+
     setState(() {
       isScanning = true;
       devices = [];
@@ -126,7 +164,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       });
     } catch (e) {
       setState(() {
-        status = e.toString(); // e.g. permission or Bluetooth off
+        status = 'Error: ${e.toString()}';
       });
       _showBluetoothAlert(status);
     } finally {
@@ -187,8 +225,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     if (!hasPermission) {
       return _buildBanner(
         Icons.warning,
-        'Bluetooth permission not granted. Please allow Bluetooth access.',
+        'Bluetooth permission not granted. Tap to grant permissions.',
         Colors.orange,
+        onTap: _requestBluetoothPermissions,
       );
     }
 
@@ -203,25 +242,32 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     return const SizedBox.shrink();
   }
 
-  Widget _buildBanner(IconData icon, String text, Color color) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      margin: const EdgeInsets.only(bottom: 12),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: color),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: TextStyle(color: color, fontWeight: FontWeight.w500),
+  Widget _buildBanner(IconData icon, String text, Color color, {VoidCallback? onTap}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        margin: const EdgeInsets.only(bottom: 12),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(color: color, fontWeight: FontWeight.w500),
+              ),
             ),
-          ),
-        ],
+            if (onTap != null) ...[
+              const SizedBox(width: 8),
+              Icon(Icons.touch_app, color: color, size: 20),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -250,17 +296,26 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
           child: ListView(
             children: [
               _bluetoothBanner(),
-              Row(
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
                     'Device Connection',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
                   ),
-                  const SizedBox(width: 12),
-                  Chip(
-                    label: Text(status),
-                    backgroundColor: _statusColor().withOpacity(0.1),
-                    labelStyle: TextStyle(color: _statusColor()),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      Chip(
+                        label: Text(
+                          status,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        backgroundColor: _statusColor().withOpacity(0.1),
+                        labelStyle: TextStyle(color: _statusColor()),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -382,3 +437,4 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     );
   }
 }
+

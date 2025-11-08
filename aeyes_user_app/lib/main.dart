@@ -11,6 +11,8 @@ import 'screens/registration_screen.dart';
 import 'screens/role_selection_screen.dart';
 import 'screens/guardian_login_screen.dart';
 import 'screens/guardian_dashboard_screen.dart';
+import 'screens/guardian_registration_screen.dart';
+import 'screens/map_screen.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -75,31 +77,48 @@ class MyApp extends StatelessWidget {
       builder: (context, themeMode, _) {
         return Consumer<LanguageService>(
           builder: (context, languageService, _) {
+            final appLocale = languageService.locale;
+            
             return MaterialApp(
-              key: ValueKey('material_app_${languageService.locale.languageCode}'),
               title: 'AEyes User App',
               debugShowCheckedModeBanner: false,
-              locale: languageService.locale,
+              locale: appLocale,
               localizationsDelegates: const [
                 AppLocalizations.delegate,
                 GlobalMaterialLocalizations.delegate,
                 GlobalWidgetsLocalizations.delegate,
                 GlobalCupertinoLocalizations.delegate,
               ],
-              supportedLocales: LanguageService.supportedLocales,
+              supportedLocales: const [
+                Locale('en'),
+                Locale('tl'),
+              ],
               localeResolutionCallback: (locale, supportedLocales) {
-                // If locale is null, use the language service locale
-                if (locale == null) {
-                  return languageService.locale;
+                // Always validate appLocale first - ensure it's supported
+                final appLocaleCode = appLocale.languageCode;
+                final isAppLocaleSupported = supportedLocales.any(
+                  (l) => l.languageCode == appLocaleCode
+                );
+                
+                // If app locale is not supported (e.g., ceb or pam), use English
+                if (!isAppLocaleSupported) {
+                  return const Locale('en');
                 }
+                
+                // If locale is null, use the validated app locale
+                if (locale == null) {
+                  return appLocale;
+                }
+                
                 // Check if the locale is supported
                 for (var supportedLocale in supportedLocales) {
                   if (supportedLocale.languageCode == locale.languageCode) {
                     return supportedLocale;
                   }
                 }
-                // Fallback to language service locale
-                return languageService.locale;
+                
+                // Fallback to validated app locale
+                return appLocale;
               },
               theme: ThemeData(
                 colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
@@ -129,7 +148,13 @@ class MyApp extends StatelessWidget {
                 ),
                 '/register': (context) => const RegistrationScreen(),
                 '/guardian_login': (context) => const GuardianLoginScreen(),
+                '/guardian_register': (context) => const GuardianRegistrationScreen(),
                 '/guardian_dashboard': (context) => const GuardianDashboardScreen(),
+                '/map': (context) {
+                  final args = ModalRoute.of(context)?.settings.arguments;
+                  final userId = args is String ? args : null;
+                  return MapScreen(userId: userId);
+                },
               },
             );
           },

@@ -40,7 +40,9 @@ dependencies:
   shared_preferences: ^2.2.2
   image_picker: ^1.0.7
   permission_handler: ^11.3.0
-  google_maps_flutter: ^2.5.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^12.0.0
   firebase_core: ^2.25.4
   firebase_auth: ^4.17.4
   cloud_firestore: ^4.15.5

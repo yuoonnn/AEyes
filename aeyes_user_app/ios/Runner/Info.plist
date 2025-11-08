@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to show your position on the map and share it with your guardian.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>This app needs access to your location to track your position and share it with your guardian.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to your location to track your position and share it with your guardian.</string>
 </dict>
 </plist>

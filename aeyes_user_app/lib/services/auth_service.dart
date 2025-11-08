@@ -5,6 +5,9 @@ import 'package:flutter_facebook_auth/flutter_facebook_auth.dart';
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
+  // Add currentUserId getter
+  String? get currentUserId => _auth.currentUser?.uid;
+
   // Login
   Future<String?> login(String email, String password) async {
     try {
@@ -60,4 +63,4 @@ class AuthService {
   Future<void> logout() async {
     await _auth.signOut();
   }
-} 
+}
