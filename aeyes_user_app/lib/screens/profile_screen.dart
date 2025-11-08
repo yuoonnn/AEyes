@@ -24,11 +24,115 @@ class _ProfileScreenState extends State<ProfileScreen> {
   bool isLoading = true;
   final AuthService _authService = AuthService();
   final DatabaseService _databaseService = DatabaseService();
+  List<Map<String, dynamic>> linkedGuardians = [];
+  final TextEditingController guardianEmailController = TextEditingController();
+  final TextEditingController guardianNameController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _loadUserData();
+    _loadGuardians();
+  }
+
+  @override
+  void dispose() {
+    guardianEmailController.dispose();
+    guardianNameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _loadGuardians() async {
+    try {
+      final guardians = await _databaseService.getGuardians();
+      setState(() {
+        linkedGuardians = guardians;
+      });
+    } catch (e) {
+      // Handle error silently
+    }
+  }
+
+  Future<void> _linkGuardian() async {
+    if (guardianEmailController.text.trim().isEmpty || 
+        guardianNameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter guardian email and name')),
+      );
+      return;
+    }
+
+    setState(() => isLoading = true);
+    try {
+      await _databaseService.linkGuardian(
+        guardianEmail: guardianEmailController.text.trim(),
+        guardianName: guardianNameController.text.trim(),
+      );
+      
+      guardianEmailController.clear();
+      guardianNameController.clear();
+      await _loadGuardians();
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Guardian link request sent!')),
+        );
+        Navigator.pop(context); // Close dialog
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    } finally {
+      setState(() => isLoading = false);
+    }
+  }
+
+  void _showLinkGuardianDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Link Guardian'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CustomTextField(
+                hintText: 'Guardian Name',
+                controller: guardianNameController,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                hintText: 'Guardian Email',
+                controller: guardianEmailController,
+                keyboardType: TextInputType.emailAddress,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: isLoading ? null : _linkGuardian,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF388E3C),
+            ),
+            child: isLoading 
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  )
+                : const Text('Link', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _loadUserData() async {
@@ -275,6 +379,66 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               enabled: isEditing,
                             ),
                           ),
+                          const SizedBox(height: 32),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          // Guardian Linking Section
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.shield, color: const Color(0xFF388E3C)),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Linked Guardians',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.add_circle, color: Color(0xFF388E3C)),
+                                onPressed: _showLinkGuardianDialog,
+                                tooltip: 'Link Guardian',
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          if (linkedGuardians.isEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'No guardians linked. Click + to add a guardian.',
+                                style: TextStyle(color: Colors.grey),
+                              ),
+                            )
+                          else
+                            ...linkedGuardians.map((guardian) => Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              child: ListTile(
+                                leading: const Icon(Icons.person, color: Color(0xFF388E3C)),
+                                title: Text(guardian['guardian_name'] ?? 'Unknown'),
+                                subtitle: Text(guardian['guardian_email'] ?? ''),
+                                trailing: Chip(
+                                  label: Text(
+                                    guardian['relationship_status'] == 'active' 
+                                        ? 'Active' 
+                                        : 'Pending',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                  backgroundColor: guardian['relationship_status'] == 'active'
+                                      ? Colors.green.shade100
+                                      : Colors.orange.shade100,
+                                ),
+                              ),
+                            )),
                           if (successMessage != null) ...[
                             const SizedBox(height: 16),
                             Container(

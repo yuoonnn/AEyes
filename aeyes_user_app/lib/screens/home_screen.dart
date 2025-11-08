@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../services/bluetooth_service.dart';
 import '../services/openai_service.dart';
+import '../services/background_location_service.dart';
 import '../widgets/main_scaffold.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -23,6 +24,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   double _opacity = 0.0;
   String analysisResult = "Waiting for image...";
+  final BackgroundLocationService _backgroundLocationService = BackgroundLocationService();
 
   @override
   void initState() {
@@ -43,6 +45,29 @@ class _HomeScreenState extends State<HomeScreen>
         setState(() => analysisResult = "Error: $e");
       }
     };
+
+    // Start background location tracking
+    _startLocationTracking();
+  }
+
+  Future<void> _startLocationTracking() async {
+    // Only start tracking if user is logged in
+    final user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      final started = await _backgroundLocationService.startTracking();
+      if (started) {
+        print('Background location tracking started successfully');
+      } else {
+        print('Failed to start background location tracking');
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    // Stop location tracking when screen is disposed
+    _backgroundLocationService.stopTracking();
+    super.dispose();
   }
 
   @override

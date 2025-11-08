@@ -207,11 +207,14 @@ class DatabaseService {
   }) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = guardianEmail.trim().toLowerCase();
+    
     final guardianId = _firestore.collection('guardians').doc().id;
     await _firestore.collection('guardians').doc(guardianId).set({
       'guardian_id': guardianId,
       'user_id': currentUserId,
-      'guardian_email': guardianEmail,
+      'guardian_email': normalizedEmail, // Store normalized email
       'guardian_name': guardianName,
       'phone': phone,
       'relationship_status': relationshipStatus,
@@ -236,9 +239,12 @@ class DatabaseService {
 
   /// Get users linked to a guardian (by guardian email)
   Future<List<Map<String, dynamic>>> getLinkedUsersForGuardian(String guardianEmail) async {
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = guardianEmail.trim().toLowerCase();
+    
     final snapshot = await _firestore
         .collection('guardians')
-        .where('guardian_email', isEqualTo: guardianEmail)
+        .where('guardian_email', isEqualTo: normalizedEmail)
         .where('relationship_status', isEqualTo: 'active')
         .get();
     
@@ -260,6 +266,82 @@ class DatabaseService {
     }
     
     return users;
+  }
+
+  /// Get pending link requests for a guardian
+  Future<List<Map<String, dynamic>>> getPendingLinkRequests(String guardianEmail) async {
+    if (guardianEmail.isEmpty) return [];
+    
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = guardianEmail.trim().toLowerCase();
+    print('Searching for pending requests with email: $normalizedEmail');
+    
+    // First try with normalized email (for new records)
+    var snapshot = await _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: normalizedEmail)
+        .where('relationship_status', isEqualTo: 'pending')
+        .get();
+    
+    print('Found ${snapshot.docs.length} pending requests with normalized email');
+    
+    // If no results, try fetching all pending and filtering manually
+    // (for old records that might have mixed case email)
+    List<QueryDocumentSnapshot> matchingDocs = snapshot.docs;
+    
+    if (matchingDocs.isEmpty) {
+      print('No results with normalized email, checking all pending requests...');
+      final allPending = await _firestore
+          .collection('guardians')
+          .where('relationship_status', isEqualTo: 'pending')
+          .get();
+      
+      print('Found ${allPending.docs.length} total pending requests');
+      
+      // Filter by email (case-insensitive)
+      matchingDocs = allPending.docs.where((doc) {
+        final email = (doc.data() as Map<String, dynamic>)['guardian_email'] as String?;
+        final matches = email?.trim().toLowerCase() == normalizedEmail;
+        if (matches) {
+          print('Found matching request with email: $email');
+        }
+        return matches;
+      }).toList();
+      
+      print('Filtered to ${matchingDocs.length} matching requests');
+    }
+    
+    if (matchingDocs.isEmpty) return [];
+    
+    // Get user IDs and link info
+    final requests = <Map<String, dynamic>>[];
+    for (final doc in matchingDocs) {
+      final data = doc.data();
+      final userId = data['user_id'] as String;
+      final userDoc = await _firestore.collection('users').doc(userId).get();
+      if (userDoc.exists) {
+        requests.add({
+          'guardian_id': doc.id,
+          'user_id': userId,
+          'guardian_name': data['guardian_name'],
+          'created_at': data['created_at'],
+          ...userDoc.data()!,
+        });
+      } else {
+        print('User document not found for userId: $userId');
+      }
+    }
+    
+    print('Returning ${requests.length} valid pending requests');
+    return requests;
+  }
+
+  /// Approve a pending link request
+  Future<void> approveLinkRequest(String guardianId) async {
+    await _firestore.collection('guardians').doc(guardianId).update({
+      'relationship_status': 'active',
+      'approved_at': FieldValue.serverTimestamp(),
+    });
   }
 
   /// Get latest location for a user
@@ -379,9 +461,12 @@ class DatabaseService {
     final user = _auth.currentUser;
     if (user?.email == null) throw Exception('Guardian email not found');
     
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    
     final guardiansSnapshot = await _firestore
         .collection('guardians')
-        .where('guardian_email', isEqualTo: user!.email)
+        .where('guardian_email', isEqualTo: normalizedEmail)
         .where('user_id', isEqualTo: userId)
         .limit(1)
         .get();

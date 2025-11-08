@@ -25,6 +25,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   
   // Linked users
   List<Map<String, dynamic>> linkedUsers = [];
+  List<Map<String, dynamic>> pendingRequests = [];
   String? selectedUserId;
   Map<String, dynamic>? selectedUser;
   
@@ -70,12 +71,21 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       // Load guardian profile
       final profile = await _databaseService.getUserProfile();
       
+      final guardianEmail = user.email ?? '';
+      print('Guardian email: $guardianEmail');
+      
       // Load linked users
-      final users = await _databaseService.getLinkedUsersForGuardian(user.email ?? '');
+      final users = await _databaseService.getLinkedUsersForGuardian(guardianEmail);
+      print('Found ${users.length} linked users');
+      
+      // Load pending link requests
+      final pending = await _databaseService.getPendingLinkRequests(guardianEmail);
+      print('Found ${pending.length} pending link requests');
       
       setState(() {
         guardianProfile = profile;
         linkedUsers = users;
+        pendingRequests = pending;
         if (users.isNotEmpty) {
           selectedUserId = users.first['user_id'] as String;
           selectedUser = users.first;
@@ -84,7 +94,27 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
         isLoading = false;
       });
     } catch (e) {
+      print('Error loading guardian profile: $e');
       setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _approveRequest(String guardianId) async {
+    try {
+      await _databaseService.approveLinkRequest(guardianId);
+      // Reload profile to refresh linked users
+      await _loadProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link request approved!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -262,6 +292,14 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
         title: const Text('Guardian Dashboard'),
         actions: [
           IconButton(
+            icon: const Icon(Icons.refresh),
+            tooltip: 'Refresh',
+            onPressed: () {
+              setState(() => isLoading = true);
+              _loadProfile();
+            },
+          ),
+          IconButton(
             icon: const Icon(Icons.logout),
             tooltip: 'Logout',
             onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false),
@@ -271,10 +309,12 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       body: isLoading
           ? const Center(child: CircularProgressIndicator())
           : linkedUsers.isEmpty
-              ? Center(
+              ? SingleChildScrollView(
+                  padding: const EdgeInsets.all(24.0),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
+                      const SizedBox(height: 40),
                       Icon(Icons.person_off, size: 64, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
                       const Text(
@@ -285,7 +325,67 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                       Text(
                         'Users need to link you as their guardian first',
                         style: TextStyle(color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
                       ),
+                      const SizedBox(height: 32),
+                      // Show guardian email for linking
+                      if (user?.email != null) ...[
+                        Card(
+                          color: green.withOpacity(0.1),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Column(
+                              children: [
+                                const Text(
+                                  'Your Guardian Email:',
+                                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                                ),
+                                const SizedBox(height: 8),
+                                SelectableText(
+                                  user!.email!,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Share this email with users to link you as their guardian',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                      ],
+                      // Show pending requests
+                      if (pendingRequests.isNotEmpty) ...[
+                        const Text(
+                          'Pending Link Requests',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 16),
+                        ...pendingRequests.map((request) => Card(
+                          margin: const EdgeInsets.only(bottom: 12),
+                          child: ListTile(
+                            leading: const Icon(Icons.person_add, color: Colors.orange),
+                            title: Text(request['name'] ?? 'Unknown User'),
+                            subtitle: Text(request['email'] ?? ''),
+                            trailing: ElevatedButton(
+                              onPressed: () => _approveRequest(request['guardian_id'] as String),
+                              style: ElevatedButton.styleFrom(backgroundColor: green),
+                              child: const Text('Approve', style: TextStyle(color: Colors.white)),
+                            ),
+                          ),
+                        )),
+                        const SizedBox(height: 24),
+                      ],
                     ],
                   ),
                 )
@@ -294,6 +394,45 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                   children: [
                     const Text('Welcome, Guardian!', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
+                    
+                    // Pending Link Requests (show even when there are active users)
+                    if (pendingRequests.isNotEmpty) ...[
+                      Card(
+                        color: Colors.orange.withOpacity(0.1),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.person_add, color: Colors.orange),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'Pending Link Requests',
+                                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              ...pendingRequests.map((request) => Card(
+                                margin: const EdgeInsets.only(bottom: 8),
+                                child: ListTile(
+                                  title: Text(request['name'] ?? 'Unknown User'),
+                                  subtitle: Text(request['email'] ?? ''),
+                                  trailing: ElevatedButton(
+                                    onPressed: () => _approveRequest(request['guardian_id'] as String),
+                                    style: ElevatedButton.styleFrom(backgroundColor: green),
+                                    child: const Text('Approve', style: TextStyle(color: Colors.white)),
+                                  ),
+                                ),
+                              )),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
                     
                     // User Selection
                     if (linkedUsers.length > 1)

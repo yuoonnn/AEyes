@@ -17,6 +17,7 @@ class BluetoothService {
   /// Scan for nearby Bluetooth devices
   Future<List<String>> scanForDevices() async {
     final List<String> found = [];
+    final Set<String> deviceIds = {}; // Track by ID to avoid duplicates
     
     // Check if Bluetooth is available
     if (await ble.FlutterBluePlus.isSupported == false) {
@@ -25,46 +26,97 @@ class BluetoothService {
     }
 
     // Turn on Bluetooth if off
-    if (await ble.FlutterBluePlus.adapterState.first == ble.BluetoothAdapterState.off) {
+    final adapterState = await ble.FlutterBluePlus.adapterState.first;
+    if (adapterState == ble.BluetoothAdapterState.off) {
       await ble.FlutterBluePlus.turnOn();
+      // Wait a bit for Bluetooth to turn on
+      await Future.delayed(const Duration(seconds: 1));
     }
 
-    // Start scanning
-    await ble.FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
+    print("Starting Bluetooth scan...");
     
-    // Listen to scan results
-    await for (List<ble.ScanResult> results in ble.FlutterBluePlus.scanResults) {
+    // Start scanning with longer timeout for ESP32
+    await ble.FlutterBluePlus.startScan(
+      timeout: const Duration(seconds: 10), // Increased to 10 seconds
+      withServices: [], // Don't filter by services - scan all devices
+    );
+    
+    // Collect scan results during the scan period
+    final subscription = ble.FlutterBluePlus.scanResults.listen((results) {
       for (ble.ScanResult result in results) {
-        if (result.device.platformName.isNotEmpty && 
-            !found.contains(result.device.platformName)) {
-          found.add(result.device.platformName);
+        final device = result.device;
+        final deviceId = device.remoteId.str;
+        
+        // Skip if we've already seen this device
+        if (deviceIds.contains(deviceId)) continue;
+        deviceIds.add(deviceId);
+        
+        // Get device name - prefer platformName, fallback to advertisedName, or use ID
+        String deviceName = device.platformName;
+        if (deviceName.isEmpty) {
+          deviceName = device.advertisedName.isNotEmpty 
+              ? device.advertisedName 
+              : 'Unknown Device';
+        }
+        
+        // For ESP32, also check if name contains common ESP32 identifiers
+        // or if it's a BLE device (ESP32 typically uses BLE)
+        if (deviceName.isNotEmpty && deviceName != 'Unknown Device') {
+          found.add(deviceName);
+          print('Found device: $deviceName (ID: $deviceId)');
+        } else if (device.platformType == ble.BluetoothDeviceType.le) {
+          // If it's a BLE device but no name, use ID
+          final displayName = 'BLE Device ($deviceId)';
+          found.add(displayName);
+          print('Found BLE device: $displayName');
         }
       }
-    }
-
+    });
+    
+    // Wait for scan to complete
+    await Future.delayed(const Duration(seconds: 10));
+    
     // Stop scanning
     await ble.FlutterBluePlus.stopScan();
+    await subscription.cancel();
     
+    print("Scan complete. Found ${found.length} devices: $found");
     return found;
   }
 
   /// Connect to selected device by name
   Future<bool> connect(String deviceName) async {
     try {
+      print("Connecting to device: $deviceName");
+      
       // Start scanning to find the device
-      await ble.FlutterBluePlus.startScan(timeout: const Duration(seconds: 4));
+      await ble.FlutterBluePlus.startScan(
+        timeout: const Duration(seconds: 8),
+        withServices: [],
+      );
       
       ble.BluetoothDevice? targetDevice;
-      await for (List<ble.ScanResult> results in ble.FlutterBluePlus.scanResults) {
+      final subscription = ble.FlutterBluePlus.scanResults.listen((results) {
         for (ble.ScanResult result in results) {
-          if (result.device.platformName == deviceName) {
-            targetDevice = result.device;
+          final device = result.device;
+          final name = device.platformName.isNotEmpty 
+              ? device.platformName 
+              : device.advertisedName;
+          
+          // Match by name or by ID (if deviceName contains ID)
+          if (name == deviceName || 
+              device.remoteId.str == deviceName ||
+              (deviceName.startsWith('BLE Device') && deviceName.contains(device.remoteId.str))) {
+            targetDevice = device;
+            print("Found target device: $name (${device.remoteId.str})");
             break;
           }
         }
-        if (targetDevice != null) break;
-      }
+      });
       
+      // Wait for scan to find device or timeout
+      await Future.delayed(const Duration(seconds: 8));
+      await subscription.cancel();
       await ble.FlutterBluePlus.stopScan();
 
       if (targetDevice == null) {

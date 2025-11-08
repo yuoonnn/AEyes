@@ -331,7 +331,21 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
               ),
               const SizedBox(height: 8),
               if (devices.isEmpty)
-                const Center(child: Text('No devices found.'))
+                Center(
+                  child: Column(
+                    children: [
+                      const Icon(Icons.bluetooth_disabled, size: 48, color: Colors.grey),
+                      const SizedBox(height: 8),
+                      const Text('No devices found.'),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Make sure your ESP32 is powered on and in pairing mode.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                )
               else
                 ...devices.map(
                   (device) => Card(
@@ -341,17 +355,30 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                     ),
                     child: ListTile(
                       leading: Icon(
-                        Icons.devices,
+                        device.toLowerCase().contains('esp') || 
+                        device.toLowerCase().contains('ble')
+                            ? Icons.sensors
+                            : Icons.devices,
                         color: connectedDevice == device
                             ? Colors.green
                             : Colors.blueGrey,
                       ),
-                      title: Text(device),
+                      title: Text(
+                        device,
+                        style: TextStyle(
+                          fontWeight: connectedDevice == device 
+                              ? FontWeight.bold 
+                              : FontWeight.normal,
+                        ),
+                      ),
+                      subtitle: connectedDevice == device
+                          ? const Text('Connected', style: TextStyle(color: Colors.green))
+                          : null,
                       trailing: connectedDevice == device
                           ? const Icon(Icons.check_circle, color: Colors.green)
-                          : CustomButton(
-                              label: 'Connect',
+                          : ElevatedButton(
                               onPressed: () => _connectToDevice(device),
+                              child: const Text('Connect'),
                             ),
                     ),
                   ),

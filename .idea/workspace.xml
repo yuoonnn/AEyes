@@ -5,19 +5,11 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="fe1bc3f7-fd05-4a39-9f87-ccfb333ee78d" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/Figures/AEyes_Network_Architecture.drawio" beforeDir="false" afterPath="$PROJECT_DIR$/Figures/AEyes_Network_Architecture.drawio" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/Figures/AEyes_System_Architecture_Three_Tier.puml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/android/app/src/main/AndroidManifest.xml" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/android/app/src/main/AndroidManifest.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/ios/Runner/AppDelegate.swift" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/ios/Runner/AppDelegate.swift" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/main.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/main.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_login_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/home_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/home_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/login_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/login_screen.dart" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.gitignore" beforeDir="false" afterPath="$PROJECT_DIR$/.gitignore" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_dashboard_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/guardian_dashboard_screen.dart" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/profile_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/profile_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/screens/settings_screen.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/screens/settings_screen.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/services/bluetooth_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/services/bluetooth_service.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/widgets/custom_textfield.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/widgets/custom_textfield.dart" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/aeyes_user_app/pubspec.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/pubspec.yaml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/aeyes_user_app/lib/services/database_service.dart" beforeDir="false" afterPath="$PROJECT_DIR$/aeyes_user_app/lib/services/database_service.dart" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -48,7 +40,7 @@
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
     "dart.analysis.tool.window.visible": "false",
-    "git-widget-placeholder": "IOS-Branch",
+    "git-widget-placeholder": "Test1",
     "kotlin-language-version-configured": "true",
     "last_opened_file_path": "D:/Program Project/AEyes Project",
     "settings.editor.selected.configurable": "dart.settings",
