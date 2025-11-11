@@ -1,0 +1,114 @@
+{
+  "@@locale": "en",
+  "appName": "AEyes",
+  "@appName": {
+    "description": "The application name"
+  },
+  "welcomeToAEyes": "Welcome to AEyes",
+  "signInToContinue": "Sign in to continue",
+  "email": "Email",
+  "password": "Password",
+  "login": "Login",
+  "signInWithGoogle": "Sign in with Google",
+  "signInWithFacebook": "Sign in with Facebook",
+  "dontHaveAccount": "Don't have an account? Register",
+  "backToRoleSelection": "Back to Role Selection",
+  "welcomeBack": "Welcome back!",
+  "quickAccessDashboard": "Here's your quick access dashboard.",
+  "yourName": "Your Name",
+  "yourEmail": "your@email.com",
+  "editProfile": "Edit Profile",
+  "hazardGuidance": "Hazard Guidance",
+  "waitingForImage": "Waiting for image...",
+  "analyzing": "Analyzing...",
+  "bluetooth": "Bluetooth",
+  "settings": "Settings",
+  "profile": "Profile",
+  "openAI": "OpenAI",
+  "userProfile": "User Profile",
+  "fullName": "Full Name",
+  "enterYourName": "Enter your name",
+  "enterYourEmail": "Enter your email",
+  "phoneNumber": "Phone Number",
+  "enterYourPhoneNumber": "Enter your phone number",
+  "address": "Address",
+  "enterYourAddress": "Enter your address",
+  "edit": "Edit",
+  "save": "Save",
+  "saving": "Saving...",
+  "profileUpdatedSuccessfully": "Profile updated successfully!",
+  "languageAndRegion": "Language & Region",
+  "language": "Language",
+  "audioSettings": "Audio Settings",
+  "ttsVolume": "TTS Volume",
+  "beepVolume": "Beep Volume",
+  "boneConductionSpeaker": "Bone Conduction Speaker",
+  "appPreferences": "App Preferences",
+  "notifications": "Notifications",
+  "enablePushNotifications": "Enable push notifications",
+  "darkMode": "Dark Mode",
+  "switchBetweenThemes": "Switch between light and dark theme",
+  "saveSettings": "Save Settings",
+  "settingsSaved": "Settings saved!",
+  "logout": "Logout",
+  "guardianLogin": "Guardian Login",
+  "signInToManageWard": "Sign in to manage your ward",
+  "dontHaveAccountRegisterGuardian": "Don't have an account? Register as Guardian",
+  "register": "Register",
+  "name": "Name",
+  "registerAsUser": "Register as User",
+  "registerAsGuardian": "Register as Guardian",
+  "selectRole": "Select Role",
+  "iAmAUser": "I am a User",
+  "iAmAGuardian": "I am a Guardian",
+  "guardianDashboard": "Guardian Dashboard",
+  "refresh": "Refresh",
+  "noLinkedUsers": "No linked users",
+  "usersNeedToLinkYou": "Users need to link you as their guardian first",
+  "yourGuardianEmail": "Your Guardian Email:",
+  "shareThisEmail": "Share this email with users to link you as their guardian",
+  "pendingLinkRequests": "Pending Link Requests",
+  "approve": "Approve",
+  "welcomeGuardian": "Welcome, Guardian!",
+  "selectUser": "Select User",
+  "phone": "Phone",
+  "noEmail": "No email",
+  "locationTracking": "Location Tracking",
+  "lastUpdated": "Last updated: {timestamp}",
+  "@lastUpdated": {
+    "description": "Last updated timestamp",
+    "placeholders": {
+      "timestamp": {
+        "type": "String"
+      }
+    }
+  },
+  "noLocationDataAvailable": "No location data available",
+  "batteryAndAlerts": "Battery & Alerts ({count})",
+  "@batteryAndAlerts": {
+    "description": "Battery and alerts title with count",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "deviceBattery": "Device Battery: {level}%",
+  "@deviceBattery": {
+    "description": "Device battery level",
+    "placeholders": {
+      "level": {
+        "type": "int"
+      }
+    }
+  },
+  "noBatteryDataAvailable": "No battery data available",
+  "noActiveAlerts": "No active alerts",
+  "acknowledge": "Acknowledge",
+  "communication": "Communication",
+  "sendMessageOrAlert": "Send a message or alert to the user.",
+  "logInAsUser": "Log in as User",
+  "unknown": "Unknown",
+  "unknownUser": "Unknown User"
+}
+

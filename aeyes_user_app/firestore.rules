@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Allow guardians to read user profiles (temporary fix)
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Note: Image history is disabled for privacy; no captures subcollection.
+    
+    // All other collections - allow read for authenticated users
+    match /locations/{locationId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /devices/{deviceId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /detection_events/{eventId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /emergency_alerts/{alertId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /messages/{messageId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /guardians/{guardianId} {
+      allow read, write: if isAuthenticated();
+    }
+    
+    match /settings/{userId} {
+      allow read, write: if isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    match /trusted_contacts/{contactId} {
+      allow read, write: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+    }
+  }
+}

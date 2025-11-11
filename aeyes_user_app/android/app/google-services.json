@@ -1,0 +1,62 @@
+{
+  "project_info": {
+    "project_number": "821129436645",
+    "project_id": "aeyes-project",
+    "storage_bucket": "aeyes-project.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:821129436645:android:64fc954768d8ed6827230c",
+        "android_client_info": {
+          "package_name": "com.example.aeyes_user_app"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "821129436645-kvs88q2ctvmr1tqo3ob2u3m24q2driln.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.aeyes_user_app",
+            "certificate_hash": "d98d9f7e528adbe33b8acce6ed3de61c2a4e9c39"
+          }
+        },
+        {
+          "client_id": "821129436645-u9ve156c7j5fct93p1csegput5o59pl4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.aeyes_user_app",
+            "certificate_hash": "3e6085d571a866407bfe40404f46d8b8c05a1eea"
+          }
+        },
+        {
+          "client_id": "821129436645-nef208etuqqg20pubrjce4grt45v8a4g.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCxpR0t8jjmimAw3iKZxmhYQZzzHPtHVik"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "821129436645-nef208etuqqg20pubrjce4grt45v8a4g.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "821129436645-uc725bibrjaevpuk73jcpt2ub0v35tme.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.aeyesUserApp"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

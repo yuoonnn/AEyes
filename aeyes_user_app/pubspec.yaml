@@ -1,0 +1,49 @@
+name: aeyes_user_app
+description: "A new Flutter project."
+publish_to: "none"
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.8.1
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+  intl: ^0.20.2
+  flutter_blue_plus: ^1.35.5  # Keep only this one
+  # Remove flutter_bluetooth_serial entirely
+  flutter_tts: ^3.8.3
+  http: ^1.2.1
+  provider: ^6.1.2
+  shared_preferences: ^2.2.2
+  image_picker: ^1.0.7
+  permission_handler: ^11.3.0
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+  geolocator: ^12.0.0
+  firebase_core: ^2.25.4
+  firebase_auth: ^4.17.4
+  cloud_firestore: ^4.15.5
+  image: ^4.2.0
+  flutter_foreground_task: ^6.4.2
+  flutter_local_notifications: ^17.2.3
+  google_sign_in: ^6.2.1
+  flutter_facebook_auth: ^6.1.1
+  cupertino_icons: ^1.0.8
+  url_launcher: ^6.0.0
+  battery_plus: ^6.0.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true
+  assets:
+    - assets/AEye Logo.png
+    - assets/Team Logo.png
