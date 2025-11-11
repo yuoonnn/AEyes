@@ -27,6 +27,7 @@ import 'services/foreground_service.dart';
 import 'services/notification_service.dart';
 import 'services/ai_state.dart';
 import 'services/tts_service.dart';
+import 'services/wifi_audio_service.dart';
 import 'services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -66,6 +67,37 @@ void main() async {
   final languageService = LanguageService();
   final aiState = AIState();
   final ttsService = TTSService();
+  
+  // Initialize Wi-Fi audio service for ESP32-S3 audio streaming
+  final wifiAudioService = WiFiAudioService();
+  
+  // Configure TTS service with Wi-Fi audio and Bluetooth
+  ttsService.setBluetoothService(bluetoothService);
+  ttsService.setWiFiAudioService(wifiAudioService);
+  
+  // Read Google Cloud TTS API key from environment (optional)
+  const googleCloudTtsKey = String.fromEnvironment('GOOGLE_CLOUD_TTS_API_KEY', defaultValue: '');
+  if (googleCloudTtsKey.isNotEmpty) {
+    ttsService.setGoogleCloudApiKey(googleCloudTtsKey);
+    print('Google Cloud TTS API key configured');
+  } else {
+    print('Google Cloud TTS API key not configured - Wi-Fi audio will use fallback methods');
+  }
+  
+  // Load ESP32 Wi-Fi IP from settings and configure Wi-Fi audio service
+  try {
+    final databaseService = DatabaseService();
+    final settings = await databaseService.getSettings();
+    if (settings != null && settings.esp32WifiIp != null) {
+      await wifiAudioService.setIpAddress(
+        settings.esp32WifiIp!,
+        port: settings.esp32WifiPort,
+      );
+      print('ESP32 Wi-Fi audio configured: ${settings.esp32WifiIp}:${settings.esp32WifiPort}');
+    }
+  } catch (e) {
+    print('Error loading ESP32 Wi-Fi settings: $e');
+  }
 
   // Auto-connect to previously used device when detected nearby
   await bluetoothService.enableAutoConnect(true);

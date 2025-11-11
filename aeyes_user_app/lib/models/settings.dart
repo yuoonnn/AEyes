@@ -11,6 +11,8 @@ class Settings {
   final String verbosityLevel; // 'minimal', 'normal', 'detailed'
   final bool emergencyContactsEnabled;
   final bool locationSharingEnabled;
+  final String? esp32WifiIp; // ESP32-S3 Wi-Fi IP address for audio streaming
+  final int esp32WifiPort; // ESP32-S3 Wi-Fi port (default: 8080)
   final DateTime? updatedAt;
 
   Settings({
@@ -26,6 +28,8 @@ class Settings {
     this.verbosityLevel = 'normal',
     this.emergencyContactsEnabled = true,
     this.locationSharingEnabled = true,
+    this.esp32WifiIp,
+    this.esp32WifiPort = 8080,
     this.updatedAt,
   });
 
@@ -44,6 +48,8 @@ class Settings {
       'verbosity_level': verbosityLevel,
       'emergency_contacts_enabled': emergencyContactsEnabled,
       'location_sharing_enabled': locationSharingEnabled,
+      'esp32_wifi_ip': esp32WifiIp,
+      'esp32_wifi_port': esp32WifiPort,
       'updated_at': updatedAt,
     };
   }
@@ -63,6 +69,8 @@ class Settings {
       verbosityLevel: map['verbosity_level'] ?? 'normal',
       emergencyContactsEnabled: map['emergency_contacts_enabled'] ?? true,
       locationSharingEnabled: map['location_sharing_enabled'] ?? true,
+      esp32WifiIp: map['esp32_wifi_ip'],
+      esp32WifiPort: map['esp32_wifi_port'] ?? 8080,
       updatedAt: map['updated_at']?.toDate(),
     );
   }
@@ -79,6 +87,8 @@ class Settings {
     String? verbosityLevel,
     bool? emergencyContactsEnabled,
     bool? locationSharingEnabled,
+    String? esp32WifiIp,
+    int? esp32WifiPort,
   }) {
     return Settings(
       settingsId: settingsId,
@@ -93,6 +103,8 @@ class Settings {
       verbosityLevel: verbosityLevel ?? this.verbosityLevel,
       emergencyContactsEnabled: emergencyContactsEnabled ?? this.emergencyContactsEnabled,
       locationSharingEnabled: locationSharingEnabled ?? this.locationSharingEnabled,
+      esp32WifiIp: esp32WifiIp ?? this.esp32WifiIp,
+      esp32WifiPort: esp32WifiPort ?? this.esp32WifiPort,
       updatedAt: DateTime.now(),
     );
   }

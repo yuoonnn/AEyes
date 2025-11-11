@@ -45,7 +45,7 @@ class DatabaseService {
   Future<void> saveSettings(app_settings.Settings settings) async {
     if (currentUserId == null) throw Exception('User not authenticated');
     
-    await _firestore.collection('settings').doc(currentUserId).set({
+    final settingsData = {
       'settings_id': currentUserId,
       'user_id': currentUserId,
       'tts_language': settings.ttsLanguage,
@@ -59,7 +59,20 @@ class DatabaseService {
       'emergency_contacts_enabled': settings.emergencyContactsEnabled,
       'location_sharing_enabled': settings.locationSharingEnabled,
       'updated_at': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    };
+    
+    // Add ESP32 Wi-Fi settings if provided
+    if (settings.esp32WifiIp != null) {
+      settingsData['esp32_wifi_ip'] = settings.esp32WifiIp;
+    }
+    if (settings.esp32WifiPort != null) {
+      settingsData['esp32_wifi_port'] = settings.esp32WifiPort;
+    }
+    
+    await _firestore.collection('settings').doc(currentUserId).set(
+      settingsData,
+      SetOptions(merge: true),
+    );
   }
 
   /// Get user settings from Firestore
@@ -89,6 +102,8 @@ class DatabaseService {
       verbosityLevel: data['verbosity_level'] ?? 'normal',
       emergencyContactsEnabled: data['emergency_contacts_enabled'] ?? true,
       locationSharingEnabled: data['location_sharing_enabled'] ?? true,
+      esp32WifiIp: data['esp32_wifi_ip'],
+      esp32WifiPort: data['esp32_wifi_port'] ?? 8080,
       updatedAt: (data['updated_at'] as Timestamp?)?.toDate(),
     );
   }
