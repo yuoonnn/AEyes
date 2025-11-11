@@ -1,0 +1,23 @@
+@"
+# Flutter
+**/.dart_tool/
+**/.packages
+**/.flutter-plugins
+**/.flutter-plugins-dependencies
+**/.metadata
+**/.gradle/
+**/build/
+**/outputs/
+**/intermediates/
+**/generated/
+**/.DS_Store
+**/.idea/
+**/.vscode/
+**/*.iml
+# Android local
+aeyes_user_app/android/local.properties
+# iOS
+**/Pods/
+# Other
+replacements.txt
+"@ | Out-File .gitignore -Encoding ascii
