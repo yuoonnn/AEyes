@@ -48,6 +48,7 @@ class AppBluetoothService {
   Function(String)? onButtonPressed;
   Function(Uint8List)? onVoiceCommandReceived;
   Function(String)? onVoiceCommandText;
+  Function(String)? onRecordingCommand; // START_RECORDING or STOP_RECORDING
 
   // Internal image buffer
   final _imageBuffer = BytesBuilder();
@@ -183,6 +184,20 @@ class AppBluetoothService {
               await c.setNotifyValue(true);
               c.onValueReceived.listen((value) {
                 _log('🔔 Notification from ${c.uuid}: ${value.length} bytes');
+
+                // Try to parse as button/voice/recording command first
+                final parsed = _parseButtonOrVoiceCommand(value);
+                if (parsed != null) {
+                  if (parsed['type'] == 'button') {
+                    onButtonPressed?.call(parsed['data'] as String);
+                  } else if (parsed['type'] == 'voice') {
+                    onVoiceCommandText?.call(parsed['data'] as String);
+                  } else if (parsed['type'] == 'record') {
+                    onRecordingCommand?.call(parsed['data'] as String);
+                  }
+                  return; // Don't process as image
+                }
+
                 // Route all notify data through image handler; it will only act when a valid header/image is present
                 _handleImageData(value);
               });
@@ -255,10 +270,15 @@ class AppBluetoothService {
       _log('🟢 Auto-connect scan tick...');
       try {
         // One-shot scan and attempt connect if preferred device is found
-        final results = await FlutterBluePlus.startScan(
-          timeout: const Duration(seconds: 6),
-          // No filters; some platforms ignore service filter before bonding
-        ).then((_) => FlutterBluePlus.scanResults.first.timeout(const Duration(seconds: 6)));
+        final results =
+            await FlutterBluePlus.startScan(
+              timeout: const Duration(seconds: 6),
+              // No filters; some platforms ignore service filter before bonding
+            ).then(
+              (_) => FlutterBluePlus.scanResults.first.timeout(
+                const Duration(seconds: 6),
+              ),
+            );
         // results is a List<ScanResult>
         for (final r in results) {
           if (r.device.remoteId.str == _preferredDeviceId) {
@@ -374,6 +394,49 @@ class AppBluetoothService {
     }
   }
 
+  // Parse button or voice command messages from ESP32
+  // Format: "BTN\n<id>\n<event>\n" or "VOICE\n<text>\n"
+  Map<String, dynamic>? _parseButtonOrVoiceCommand(List<int> data) {
+    try {
+      final text = utf8.decode(data, allowMalformed: true);
+
+      // Check for button message: "BTN\n<id>\n<event>\n"
+      if (text.startsWith('BTN\n')) {
+        final lines = text.split('\n');
+        if (lines.length >= 3) {
+          final buttonId = lines[1];
+          final event = lines[2];
+          return {'type': 'button', 'data': '$buttonId:$event'};
+        }
+      }
+
+      // Check for voice command: "VOICE\n<text>\n"
+      if (text.startsWith('VOICE\n')) {
+        final lines = text.split('\n');
+        if (lines.length >= 2) {
+          final voiceText = lines[1];
+          if (voiceText.isNotEmpty) {
+            return {'type': 'voice', 'data': voiceText};
+          }
+        }
+      }
+
+      // Check for recording command: "RECORD\n<command>\n"
+      if (text.startsWith('RECORD\n')) {
+        final lines = text.split('\n');
+        if (lines.length >= 2) {
+          final command = lines[1];
+          if (command.isNotEmpty) {
+            return {'type': 'record', 'data': command};
+          }
+        }
+      }
+    } catch (e) {
+      // Not a text message, likely binary image data
+    }
+    return null;
+  }
+
   int _indexOfSequence(List<int> buffer, List<int> sequence) {
     if (sequence.isEmpty || buffer.isEmpty || sequence.length > buffer.length) {
       return -1;
@@ -483,6 +546,27 @@ class AppBluetoothService {
   List<BluetoothService>? getServices() => _discoveredServices;
 
   // ---------------------------------------------------------------------------
+  /// Request ESP32 to capture and send an image
+  /// Returns a Future that completes when image is received (via onImageReceived callback)
+  Future<void> requestImageCapture() async {
+    if (!_isConnected || _imageCharacteristic == null) {
+      _log('❌ Cannot request image: not connected or no image characteristic');
+      throw Exception('Not connected to ESP32');
+    }
+
+    // Send a command to trigger image capture
+    // ESP32 should recognize this command and call sendCameraImage()
+    // Using "CAPTURE" command
+    try {
+      final command = utf8.encode('CAPTURE\n');
+      await _imageCharacteristic!.write(command, withoutResponse: false);
+      _log('📸 Requested image capture from ESP32');
+    } catch (e) {
+      _log('❌ Error requesting image capture: $e');
+      rethrow;
+    }
+  }
+
   Future<void> sendData(List<int> data) async {
     if (_connectedDevice == null || _imageCharacteristic == null) {
       _log('No device connected or characteristic found');

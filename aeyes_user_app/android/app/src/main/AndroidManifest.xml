@@ -20,6 +20,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
     
+    <!-- Microphone permission for voice control -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    
     <!-- Optional: Add these if you need Bluetooth advertising (if your app acts as a BLE peripheral) -->
     <!-- <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" /> -->
     

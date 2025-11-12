@@ -51,5 +51,9 @@
 	<string>This app needs access to your location to track your position and share it with your guardian.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>This app needs access to your location to track your position and share it with your guardian.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>This app needs access to your microphone to enable voice control features.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>This app needs speech recognition to convert your voice commands into text.</string>
 </dict>
 </plist>

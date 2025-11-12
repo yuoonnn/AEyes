@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 import 'package:image/image.dart' as img;
 import 'package:http/http.dart' as http;
@@ -8,8 +9,18 @@ class OpenAIService {
 
   OpenAIService(this.apiKey);
 
+  /// Analyze an image with a custom prompt (voice command)
+  /// If prompt is null, uses default navigation/hazard detection prompt
+  Future<String> analyzeImageWithPrompt(
+    Uint8List imageBytes, {
+    String? customPrompt,
+  }) async {
+    return analyzeImage(imageBytes, prompt: customPrompt);
+  }
+
   /// Analyze an image (captured by ESP32-S3) for navigation hazards
-  Future<String> analyzeImage(Uint8List imageBytes) async {
+  /// [prompt] - Optional custom prompt from voice command. If null, uses default.
+  Future<String> analyzeImage(Uint8List imageBytes, {String? prompt}) async {
     // Attempt to decode and re-encode to ensure a valid JPEG payload
     Uint8List bytesForApi = imageBytes;
     try {
@@ -26,23 +37,29 @@ class OpenAIService {
     final base64Image = base64Encode(bytesForApi);
     final dataUri = "data:image/jpeg;base64,$base64Image";
 
-    final url = Uri.parse("https://api.openai.com/v1/responses");
+    // Use standard OpenAI Chat Completions API with Vision
+    final url = Uri.parse("https://api.openai.com/v1/chat/completions");
 
     final body = {
-      "model": "gpt-4.1-mini",
-      "input": [
+      "model": "gpt-4o", // or "gpt-4-vision-preview" for older models
+      "messages": [
         {
           "role": "user",
           "content": [
             {
-              "type": "input_text",
+              "type": "text",
               "text":
+                  prompt ??
                   "You are assisting a blind user. Do three things in order: 1) Briefly describe the scene in one short sentence. 2) Identify potential hazards or obstacles and provide concise, safe guidance with relative position/distance. 3) If currency/banknotes or coins are visible, state their denominations and the total amount visible. Keep the whole response clear and brief.",
             },
-            {"type": "input_image", "image_url": dataUri},
+            {
+              "type": "image_url",
+              "image_url": {"url": dataUri},
+            },
           ],
         },
       ],
+      "max_tokens": 300, // Limit response length
     };
 
     final response = await http.post(
@@ -58,13 +75,50 @@ class OpenAIService {
       final decoded = jsonDecode(response.body);
 
       try {
-        // Extract text output from response
-        return decoded["output"][0]["content"][0]["text"];
+        // Extract text from standard OpenAI response format
+        return decoded["choices"][0]["message"]["content"] as String;
       } catch (e) {
         throw Exception("Unexpected response format: ${response.body}");
       }
     } else {
       throw Exception("OpenAI error ${response.statusCode}: ${response.body}");
+    }
+  }
+
+  /// Transcribe audio file to text using OpenAI Whisper API
+  Future<String> transcribeAudio(String audioFilePath) async {
+    final url = Uri.parse("https://api.openai.com/v1/audio/transcriptions");
+
+    final file = File(audioFilePath);
+    if (!await file.exists()) {
+      throw Exception("Audio file not found: $audioFilePath");
+    }
+
+    final audioBytes = await file.readAsBytes();
+
+    // Create multipart request
+    final request = http.MultipartRequest('POST', url);
+    request.headers['Authorization'] = 'Bearer $apiKey';
+
+    // Add audio file
+    request.files.add(
+      http.MultipartFile.fromBytes('file', audioBytes, filename: 'audio.m4a'),
+    );
+
+    // Add model parameter
+    request.fields['model'] = 'whisper-1';
+    request.fields['language'] = 'en'; // Optional: specify language
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 200) {
+      final decoded = jsonDecode(response.body);
+      return decoded['text'] as String? ?? '';
+    } else {
+      throw Exception(
+        "OpenAI Whisper error ${response.statusCode}: ${response.body}",
+      );
     }
   }
 }

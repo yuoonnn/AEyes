@@ -13,6 +13,7 @@ import 'package:aeyes_user_app/main.dart';
 import 'package:aeyes_user_app/services/bluetooth_service.dart';
 import 'package:aeyes_user_app/services/openai_service.dart';
 import 'package:aeyes_user_app/services/language_service.dart';
+import 'package:aeyes_user_app/services/tts_service.dart';
 
 void main() {
   testWidgets('App starts and shows role selection screen', (WidgetTester tester) async {
@@ -20,6 +21,7 @@ void main() {
     final bluetoothService = AppBluetoothService();
     final openAIService = OpenAIService("");
     final languageService = LanguageService();
+    final ttsService = TTSService();
 
     // Build our app and trigger a frame.
     await tester.pumpWidget(
@@ -28,6 +30,8 @@ void main() {
         child: MyApp(
           bluetoothService: bluetoothService,
           openAIService: openAIService,
+          speechService: null, // Optional for tests
+          ttsService: ttsService,
         ),
       ),
     );

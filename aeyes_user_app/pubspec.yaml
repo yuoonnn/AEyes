@@ -1,11 +1,12 @@
 name: aeyes_user_app
-description: "A new Flutter project."
+description: "A new Flutter project - Android/iOS mobile app only."
 publish_to: "none"
 
 version: 1.0.0+1
 
 environment:
   sdk: ^3.8.1
+  # Note: This app targets Android and iOS only. Linux/Windows/Web folders removed.
 
 dependencies:
   flutter:
@@ -13,8 +14,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   intl: ^0.20.2
-  flutter_blue_plus: ^1.35.5  # Keep only this one
-  # Remove flutter_bluetooth_serial entirely
+  flutter_blue_plus: ^1.35.5
   flutter_tts: ^3.8.3
   http: ^1.2.1
   provider: ^6.1.2
@@ -35,11 +35,18 @@ dependencies:
   cupertino_icons: ^1.0.8
   url_launcher: ^6.0.0
   battery_plus: ^6.0.2
+  record: ^5.2.1  # Audio recording for ESP32 button-triggered voice commands
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^5.0.0
+
+# Override Linux dependencies since we only target Android/iOS
+dependency_overrides:
+  # Prevent record_linux from being compiled (Android/iOS only)
+  record_linux: 
+    path: lib/stubs/record_linux
 
 flutter:
   uses-material-design: true

@@ -10,15 +10,21 @@ import '../widgets/main_scaffold.dart';
 import '../theme/app_theme.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_state.dart';
+import '../services/speech_service.dart';
+import '../services/tts_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final AppBluetoothService bluetoothService;
   final OpenAIService openAIService;
+  final SpeechService? speechService;
+  final TTSService? ttsService;
 
   const HomeScreen({
     Key? key,
     required this.bluetoothService,
     required this.openAIService,
+    this.speechService,
+    this.ttsService,
   }) : super(key: key);
 
   @override
@@ -82,36 +88,9 @@ class _HomeScreenState extends State<HomeScreen>
       }
     };
 
-    // Hook into voice command events from ESP32
-    widget.bluetoothService.onVoiceCommandText = (String command) {
-      if (!mounted) return;
-      
-      print('Voice command received: $command');
-      
-      // Process voice command - command is already processed text from ESP32
-      final lowerCommand = command.toLowerCase().trim();
-      
-      if (lowerCommand.contains('help') || lowerCommand.contains('emergency')) {
-        // Handle emergency/help command
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Emergency command detected'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      } else if (lowerCommand.contains('capture') || lowerCommand.contains('analyze')) {
-        // Trigger image analysis
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Capture command received')),
-        );
-      } else if (lowerCommand.contains('settings')) {
-        Navigator.pushNamed(context, '/settings');
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Voice command: $command')),
-        );
-      }
-    };
+    // Voice commands from ESP32 are now handled globally in main.dart
+    // They are automatically paired with the next image capture
+    // No need to handle them here anymore
 
     // Hook into raw voice command audio (if ESP32 sends audio instead of text)
     widget.bluetoothService.onVoiceCommandReceived = (Uint8List audioData) {
@@ -124,6 +103,48 @@ class _HomeScreenState extends State<HomeScreen>
         SnackBar(content: Text('Voice audio received: ${audioData.length} bytes')),
       );
     };
+
+    // Set up phone voice control (if speech service is available)
+    if (widget.speechService != null) {
+      widget.speechService!.onSpeechResult = (String text) {
+        if (!mounted) return;
+        
+        print('Voice command from phone: $text');
+        final lowerCommand = text.toLowerCase().trim();
+        
+        // Process voice commands
+        if (lowerCommand.contains('help') || lowerCommand.contains('emergency')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Emergency command detected'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        } else if (lowerCommand.contains('capture') || lowerCommand.contains('analyze') || lowerCommand.contains('take picture')) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Capture command received')),
+          );
+        } else if (lowerCommand.contains('settings')) {
+          Navigator.pushNamed(context, '/settings');
+        } else if (lowerCommand.contains('home')) {
+          // Already on home, do nothing
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Voice command: $text')),
+          );
+        }
+      };
+      
+      widget.speechService!.onError = (String error) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Voice error: $error'),
+            backgroundColor: Colors.orange,
+          ),
+        );
+      };
+    }
 
     // Start background location tracking
     _startLocationTracking();

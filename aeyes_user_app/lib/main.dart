@@ -27,6 +27,7 @@ import 'services/foreground_service.dart';
 import 'services/notification_service.dart';
 import 'services/ai_state.dart';
 import 'services/tts_service.dart';
+import 'services/speech_service.dart';
 import 'services/database_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -60,23 +61,109 @@ void main() async {
   final bluetoothService =
       AppBluetoothService(); // Changed to AppBluetoothService
   // Read OpenAI API key from a secure runtime define (never commit keys)
-  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+  const openAiKey = String.fromEnvironment(
+    'OPENAI_API_KEY',
+    defaultValue:
+        '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',
+  );
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();
   final aiState = AIState();
   final ttsService = TTSService();
 
+  // Speech service - for recording audio when ESP32 button is pressed
+  SpeechService? speechService;
+  try {
+    final service = SpeechService(openAIService: openAIService);
+    await service.initialize();
+    speechService = service;
+    print('✅ Speech service initialized (audio recording ready)');
+  } catch (e) {
+    print('⚠️ Speech service initialization failed: $e');
+    print('⚠️ Voice control will be disabled');
+    speechService = null;
+  }
+
   // Auto-connect to previously used device when detected nearby
   await bluetoothService.enableAutoConnect(true);
 
-  // Global handler: analyze incoming images regardless of current screen
+  // Store pending voice command from ESP32 to pair with next image
+  String? _pendingVoiceCommand;
+  DateTime? _voiceCommandTimestamp;
+
+  // Handle voice commands from ESP32 - store for pairing with next image
+  bluetoothService.onVoiceCommandText = (String command) {
+    _pendingVoiceCommand = command.trim();
+    _voiceCommandTimestamp = DateTime.now();
+    bluetoothService.log(
+      '🎤 Voice command stored: "$command" (waiting for image)',
+    );
+  };
+
+  // Handle recording commands from ESP32 button
+  bluetoothService.onRecordingCommand = (String command) async {
+    if (speechService == null) {
+      bluetoothService.log('❌ Speech service not available');
+      return;
+    }
+
+    if (command == 'START_RECORDING') {
+      bluetoothService.log('🎤 Starting recording (ESP32 button pressed)');
+      await speechService.startRecording();
+    } else if (command == 'STOP_RECORDING') {
+      bluetoothService.log('🎤 Stopping recording (ESP32 button released)');
+      final voiceText = await speechService.stopRecording();
+
+      if (voiceText != null && voiceText.isNotEmpty) {
+        // Store the voice command for pairing with next image
+        _pendingVoiceCommand = voiceText.trim();
+        _voiceCommandTimestamp = DateTime.now();
+        bluetoothService.log(
+          '🎤 Voice command recorded: "$voiceText" (waiting for image)',
+        );
+
+        // Tell ESP32 that transcription is complete and it can capture the image
+        try {
+          await bluetoothService.requestImageCapture();
+          bluetoothService.log(
+            '📸 Requested image capture after voice transcription',
+          );
+        } catch (e) {
+          bluetoothService.log('❌ Failed to request image capture: $e');
+        }
+      } else {
+        bluetoothService.log('⚠️ No voice text extracted from recording');
+        // Still request image even if transcription failed
+        try {
+          await bluetoothService.requestImageCapture();
+        } catch (e) {
+          bluetoothService.log('❌ Failed to request image capture: $e');
+        }
+      }
+    }
+  };
+
+  // Global handler: analyze incoming images with voice command if available
   bluetoothService.onImageReceived = (Uint8List bytes) async {
     bluetoothService.log(
       '🖼️ (global) onImageReceived (${bytes.length} bytes) → OpenAI',
     );
+
+    // Check if we have a recent voice command (within last 5 seconds)
+    String? voicePrompt;
+    if (_pendingVoiceCommand != null &&
+        _voiceCommandTimestamp != null &&
+        DateTime.now().difference(_voiceCommandTimestamp!).inSeconds < 5) {
+      voicePrompt = _pendingVoiceCommand;
+      bluetoothService.log('🎤 Using voice command as prompt: "$voicePrompt"');
+      // Clear the pending command after using it
+      _pendingVoiceCommand = null;
+      _voiceCommandTimestamp = null;
+    }
+
     try {
-      final text = await openAIService.analyzeImage(bytes);
+      final text = await openAIService.analyzeImage(bytes, prompt: voicePrompt);
       aiState.setAnalysis(text);
       NotificationService.showSimple(
         id: 1001,
@@ -102,6 +189,8 @@ void main() async {
       child: MyApp(
         bluetoothService: bluetoothService,
         openAIService: openAIService,
+        speechService: speechService,
+        ttsService: ttsService,
       ),
     ),
   );
@@ -110,11 +199,15 @@ void main() async {
 class MyApp extends StatelessWidget {
   final AppBluetoothService bluetoothService; // Changed to AppBluetoothService
   final OpenAIService openAIService;
+  final SpeechService? speechService; // Optional due to plugin compatibility
+  final TTSService ttsService;
 
   const MyApp({
     super.key,
     required this.bluetoothService,
     required this.openAIService,
+    this.speechService, // Made optional
+    required this.ttsService,
   });
 
   static DateTime? _lastMessageSeenAt;
@@ -214,6 +307,8 @@ class MyApp extends StatelessWidget {
                 '/home': (context) => HomeScreen(
                   bluetoothService: bluetoothService,
                   openAIService: openAIService,
+                  speechService: speechService,
+                  ttsService: ttsService,
                 ),
                 '/analysis': (context) => const AnalysisScreen(),
                 '/settings': (context) => const SettingsScreen(),

@@ -1,0 +1,18 @@
+name: record_linux
+description: Stub package for record_linux (Android/iOS only app)
+version: 0.7.2
+publish_to: none
+
+environment:
+  sdk: '>=2.12.0 <4.0.0'
+  flutter: ">=1.20.0"
+
+dependencies:
+  record_platform_interface: ^1.4.0
+
+flutter:
+  plugin:
+    platforms:
+      linux:
+        default_package: record_linux
+
