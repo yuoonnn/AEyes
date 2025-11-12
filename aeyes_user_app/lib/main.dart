@@ -29,6 +29,7 @@ import 'services/ai_state.dart';
 import 'services/tts_service.dart';
 import 'services/speech_service.dart';
 import 'services/database_service.dart';
+import 'services/media_control_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 // === Theme ===
@@ -88,6 +89,15 @@ void main() async {
   // Auto-connect to previously used device when detected nearby
   await bluetoothService.enableAutoConnect(true);
 
+  // Initialize media control service
+  await MediaControlService.initialize();
+  final hasMediaPermission = await MediaControlService.hasPermission();
+  if (!hasMediaPermission) {
+    bluetoothService.log(
+      '⚠️ Media controls need notification access. Open Settings > Notifications > Notification Access and enable AEyes.',
+    );
+  }
+
   // Store pending voice command from ESP32 to pair with next image
   String? _pendingVoiceCommand;
   DateTime? _voiceCommandTimestamp;
@@ -139,6 +149,26 @@ void main() async {
           await bluetoothService.requestImageCapture();
         } catch (e) {
           bluetoothService.log('❌ Failed to request image capture: $e');
+        }
+      }
+    }
+  };
+
+  // Handle button press events from ESP32 - route media controls
+  bluetoothService.onButtonPressed = (String buttonData) {
+    bluetoothService.log('🎮 Button pressed: $buttonData');
+
+    // Check if this is a media control button (buttons 4, 5, or 6)
+    if (buttonData.contains(':')) {
+      final parts = buttonData.split(':');
+      if (parts.length >= 2) {
+        final buttonId = parts[0];
+
+        // Buttons 4, 5, 6 are media controls
+        if (buttonId == '4' || buttonId == '5' || buttonId == '6') {
+          MediaControlService.handleButtonEvent(buttonData);
+        } else {
+          bluetoothService.log('📱 Non-media button: $buttonData');
         }
       }
     }

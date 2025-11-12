@@ -1,63 +1,74 @@
 // Stub implementation for record_linux
 // This app only targets Android/iOS, so this is never used
 
+import 'dart:async';
 import 'dart:typed_data';
+
 import 'package:record_platform_interface/record_platform_interface.dart';
 
 /// Stub implementation - never used for Android/iOS builds
 class RecordLinux extends RecordPlatform {
-  @override
-  Future<void> dispose() async {
-    // Stub - never called
+  static void registerWith() {
+    RecordPlatform.instance = RecordLinux();
   }
 
-  @override
-  Future<bool> hasPermission() async {
-    return false; // Stub
-  }
+  Never _unsupported(String message) =>
+      throw UnimplementedError('record_linux is not supported: $message');
 
   @override
-  Future<Amplitude> getAmplitude() async {
-    return Amplitude(current: -160, max: 0);
-  }
+  Future<void> create(String recorderId) async =>
+      _unsupported('create($recorderId)');
 
   @override
-  Future<bool> isPaused() async {
-    return false;
-  }
+  Future<void> start(String recorderId, RecordConfig config,
+          {required String path}) async =>
+      _unsupported('start($recorderId)');
 
   @override
-  Future<bool> isRecording() async {
-    return false;
-  }
+  Future<Stream<Uint8List>> startStream(
+          String recorderId, RecordConfig config) async =>
+      _unsupported('startStream($recorderId)');
 
   @override
-  Future<void> pause() async {
-    // Stub
-  }
+  Future<String?> stop(String recorderId) async =>
+      _unsupported('stop($recorderId)');
 
   @override
-  Future<void> resume() async {
-    // Stub
-  }
+  Future<void> pause(String recorderId) async =>
+      _unsupported('pause($recorderId)');
 
   @override
-  Future<void> start(RecordConfig config, {String? path}) async {
-    throw UnimplementedError('record_linux is not supported (Android/iOS only app)');
-  }
+  Future<void> resume(String recorderId) async =>
+      _unsupported('resume($recorderId)');
 
   @override
-  Future<String?> stop() async {
-    throw UnimplementedError('record_linux is not supported (Android/iOS only app)');
-  }
+  Future<bool> isRecording(String recorderId) async => false;
 
   @override
-  Future<void> cancel() async {
-    // Stub
-  }
+  Future<bool> isPaused(String recorderId) async => false;
 
   @override
-  Future<Stream<Uint8List>> startStream(String recorderId, RecordConfig config) async {
-    throw UnimplementedError('record_linux is not supported (Android/iOS only app)');
-  }
+  Future<bool> hasPermission(String recorderId) async => false;
+
+  @override
+  Future<void> dispose(String recorderId) async {}
+
+  @override
+  Future<Amplitude> getAmplitude(String recorderId) async =>
+      Amplitude(current: -160, max: -160);
+
+  @override
+  Future<bool> isEncoderSupported(
+          String recorderId, AudioEncoder encoder) async =>
+      false;
+
+  @override
+  Future<List<InputDevice>> listInputDevices(String recorderId) async =>
+      const [];
+
+  @override
+  Future<void> cancel(String recorderId) async {}
+
+  @override
+  Stream<RecordState> onStateChanged(String recorderId) => const Stream.empty();
 }

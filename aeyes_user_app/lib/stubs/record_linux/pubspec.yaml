@@ -12,7 +12,8 @@ dependencies:
 
 flutter:
   plugin:
+    implements: record_platform_interface
     platforms:
       linux:
-        default_package: record_linux
+        dartPluginClass: RecordLinux
 
