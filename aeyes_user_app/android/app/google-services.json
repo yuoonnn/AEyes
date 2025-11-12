@@ -14,6 +14,14 @@
       },
       "oauth_client": [
         {
+          "client_id": "821129436645-aj2fphgo2la7e6p5f1h3ngpj0ijcgeam.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.aeyes_user_app",
+            "certificate_hash": "4e3ae32e33bb63057e93c0a6cdc0764cc108a552"
+          }
+        },
+        {
           "client_id": "821129436645-kvs88q2ctvmr1tqo3ob2u3m24q2driln.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
