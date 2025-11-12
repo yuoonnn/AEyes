@@ -50,7 +50,7 @@ class OpenAIService {
               "type": "text",
               "text":
                   prompt ??
-                  "You are assisting a blind user. Do three things in order: 1) Briefly describe the scene in one short sentence. 2) Identify potential hazards or obstacles and provide concise, safe guidance with relative position/distance. 3) If currency/banknotes or coins are visible, state their denominations and the total amount visible. Keep the whole response clear and brief.",
+                  "Describe what is in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed",
             },
             {
               "type": "image_url",

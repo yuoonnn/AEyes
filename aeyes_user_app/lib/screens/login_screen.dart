@@ -16,16 +16,32 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
   String? errorMessage;
+  bool _obscurePassword = true;
 
   Future<void> _handleLogin() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      const warning =
+          'Please register first or enter your account credentials to continue.';
+      setState(() {
+        errorMessage = warning;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text(warning)),
+      );
+      return;
+    }
+
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
     final authService = AuthService();
     String? error = await authService.login(
-      emailController.text.trim(),
-      passwordController.text.trim(),
+      email,
+      password,
     );
     setState(() {
       isLoading = false;
@@ -112,7 +128,16 @@ class _LoginScreenState extends State<LoginScreen> {
                 child: CustomTextField(
                   hintText: l10n?.password ?? 'Password',
                   controller: passwordController,
-                  obscureText: true,
+                  obscureText: _obscurePassword,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                    ),
+                    onPressed: () => setState(
+                      () => _obscurePassword = !_obscurePassword,
+                    ),
+                    tooltip: _obscurePassword ? 'Show password' : 'Hide password',
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
