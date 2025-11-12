@@ -291,7 +291,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   @override
   Widget build(BuildContext context) {
     return MainScaffold(
-      currentIndex: 1,
+      currentIndex: 2,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Bluetooth - ESP32 Connection'),

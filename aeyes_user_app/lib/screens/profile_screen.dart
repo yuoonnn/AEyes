@@ -27,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Map<String, dynamic>> linkedGuardians = [];
   final TextEditingController guardianEmailController = TextEditingController();
   final TextEditingController guardianNameController = TextEditingController();
+  bool isDeletingAccount = false;
 
   @override
   void initState() {
@@ -138,11 +139,100 @@ class _ProfileScreenState extends State<ProfileScreen> {
     }
   }
 
+  Future<void> _confirmDeleteAccount() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+    final cancelColor = isDark ? Colors.grey[200] : Colors.grey[700];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Account', style: titleStyle),
+        content: Text(
+          'Deleting your account will remove all of your data, linked guardians, messages, and devices. This action cannot be undone.\n\nAre you sure you want to continue?',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: cancelColor),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteAccount();
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() {
+      isDeletingAccount = true;
+    });
+
+    final result = await _authService.deleteCurrentAccount(isGuardian: false);
+
+    if (!mounted) return;
+
+    setState(() {
+      isDeletingAccount = false;
+    });
+
+    if (result != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your account has been deleted.')),
+      );
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+    }
+  }
+
   void _showLinkGuardianDialog() {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final cancelColor = isDark ? Colors.grey[200] : Colors.grey[700];
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Link Guardian'),
+        title: Text('Link Guardian', style: titleStyle),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -163,6 +253,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
+            style: TextButton.styleFrom(foregroundColor: cancelColor),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
@@ -299,7 +390,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     return MainScaffold(
-      currentIndex: 2,
+      currentIndex: 3,
       child: Scaffold(
         appBar: AppBar(
           title: const Text('Profile'),
@@ -528,6 +619,62 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                   label: 'Edit',
                                   onPressed: _toggleEdit,
                                 ),
+                          const SizedBox(height: 32),
+                          const Divider(),
+                          const SizedBox(height: 16),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withOpacity(0.08),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Danger Zone',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.red,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Deleting your account will permanently remove your profile, linked guardians, devices, locations, and messages.',
+                                  style: TextStyle(
+                                    color: Colors.red.shade700,
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: OutlinedButton.icon(
+                                    onPressed: isDeletingAccount ? null : _confirmDeleteAccount,
+                                    icon: isDeletingAccount
+                                        ? const SizedBox(
+                                            height: 16,
+                                            width: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: Colors.red,
+                                            ),
+                                          )
+                                        : const Icon(Icons.delete_forever),
+                                    label: Text(
+                                      isDeletingAccount ? 'Deleting...' : 'Delete Account',
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: const BorderSide(color: Colors.red),
+                                      padding: const EdgeInsets.symmetric(vertical: 14),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ],
                       ),
               ),

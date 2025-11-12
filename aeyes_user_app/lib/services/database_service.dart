@@ -39,6 +39,61 @@ class DatabaseService {
     return app_user.User.fromMap(data, currentUserId!);
   }
 
+  /// Delete the current user's account data from Firestore
+  Future<void> deleteAccountData({bool isGuardian = false}) async {
+    final uid = currentUserId;
+    if (uid == null) throw Exception('User not authenticated');
+
+    final email = _auth.currentUser?.email?.trim().toLowerCase();
+
+    Future<void> deleteDocIfExists(DocumentReference ref) async {
+      try {
+        await ref.delete();
+      } on FirebaseException catch (e) {
+        if (e.code != 'not-found') rethrow;
+      }
+    }
+
+    // Delete primary documents
+    await deleteDocIfExists(_firestore.collection('users').doc(uid));
+    await deleteDocIfExists(_firestore.collection('settings').doc(uid));
+
+    // Delete collections tied to the user ID
+    await _deleteQueryBatch(
+      _firestore.collection('devices').where('user_id', isEqualTo: uid),
+    );
+    await _deleteQueryBatch(
+      _firestore.collection('locations').where('user_id', isEqualTo: uid),
+    );
+    await _deleteQueryBatch(
+      _firestore.collection('detection_events').where('user_id', isEqualTo: uid),
+    );
+    await _deleteQueryBatch(
+      _firestore.collection('emergency_alerts').where('user_id', isEqualTo: uid),
+    );
+    await _deleteQueryBatch(
+      _firestore.collection('messages').where('user_id', isEqualTo: uid),
+    );
+    await _deleteQueryBatch(
+      _firestore.collection('guardians').where('user_id', isEqualTo: uid),
+    );
+
+    // Additional cleanup for guardians: remove records where they are the guardian
+    if (isGuardian && email != null && email.isNotEmpty) {
+      final guardianLinks = await _firestore
+          .collection('guardians')
+          .where('guardian_email', isEqualTo: email)
+          .get();
+
+      for (final doc in guardianLinks.docs) {
+        await _deleteQueryBatch(
+          _firestore.collection('messages').where('guardian_id', isEqualTo: doc.id),
+        );
+        await deleteDocIfExists(doc.reference);
+      }
+    }
+  }
+
   // ========== SETTINGS OPERATIONS ==========
   
   /// Save user settings to Firestore
@@ -664,6 +719,21 @@ class DatabaseService {
       'guardian_notified': false,
       'triggered_at': FieldValue.serverTimestamp(),
     });
+  }
+
+  /// Helper to delete query results in batches to avoid timeouts
+  Future<void> _deleteQueryBatch(Query query, {int batchSize = 50}) async {
+    QuerySnapshot snapshot;
+    do {
+      snapshot = await query.limit(batchSize).get();
+      if (snapshot.docs.isEmpty) return;
+
+      final batch = _firestore.batch();
+      for (final doc in snapshot.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+    } while (snapshot.docs.length == batchSize);
   }
 }
 

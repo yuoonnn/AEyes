@@ -168,6 +168,28 @@ class AuthService {
     await _auth.signOut();
   }
 
+  // Delete current account
+  Future<String?> deleteCurrentAccount({bool isGuardian = false}) async {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return 'No authenticated user found.';
+    }
+
+    try {
+      await _databaseService.deleteAccountData(isGuardian: isGuardian);
+      await user.delete();
+      await _auth.signOut();
+      return null;
+    } on FirebaseAuthException catch (e) {
+      if (e.code == 'requires-recent-login') {
+        return 'Please sign in again, then try deleting your account.';
+      }
+      return e.message ?? e.code;
+    } catch (e) {
+      return e.toString();
+    }
+  }
+
   // Check and create profile if missing (call this after login)
   Future<void> ensureUserProfileExists() async {
     if (_auth.currentUser != null) {

@@ -27,14 +27,6 @@
  #define HREF_GPIO_NUM  7
  #define PCLK_GPIO_NUM  13
  
- // ===================== WIFI CONFIG =====================
- const char* STA_SSID = "HUAWEI-2.4G-e78Y";
- const char* STA_PASSWORD = "PediaSure1-3";
- 
- #include <WiFi.h>
- #include <WebServer.h>
- WebServer server(8080);
- 
  // ===================== BLE CONFIG =====================
  BLEServer *pServer = nullptr;
  BLECharacteristic *pCharacteristic = nullptr;
@@ -138,41 +130,6 @@ static inline void sendRecordingCommand(const char *command) {
   }
 }
  
- // ===================== WIFI SETUP =====================
- void setupWiFi() {
-   WiFi.mode(WIFI_STA);
-   WiFi.begin(STA_SSID, STA_PASSWORD);
-   Serial.print("[WIFI] Connecting to ");
-   Serial.print(STA_SSID);
-   
-   int attempts = 0;
-   while (WiFi.status() != WL_CONNECTED && attempts < 30) {
-     delay(500);
-     Serial.print(".");
-     attempts++;
-   }
-   
-   if (WiFi.status() == WL_CONNECTED) {
-     Serial.println("");
-     Serial.print("[WIFI] ✅ Connected! IP: ");
-     Serial.println(WiFi.localIP());
-   } else {
-     Serial.println("");
-     Serial.println("[WIFI] ❌ Failed to connect");
-   }
- }
- 
- // ===================== HTTP SERVER HANDLERS =====================
- void handlePing() {
-   server.send(200, "text/plain", "OK");
- }
- 
- void setupServer() {
-   server.on("/ping", handlePing);
-   server.begin();
-   Serial.println("[HTTP] ✅ Server started on port 8080");
- }
- 
  // ===================== CAMERA SETUP =====================
  void setupCamera() {
    camera_config_t config;
@@ -271,12 +228,6 @@ static inline void sendRecordingCommand(const char *command) {
    // Camera setup
    setupCamera();
  
-   // Wi-Fi setup (optional, for future extensions)
-   setupWiFi();
- 
-   // HTTP server setup (optional, for ping/status)
-   setupServer();
- 
    // BLE setup
    BLEDevice::init("ESP32S3-CAM (AEyes)");
    pServer = BLEDevice::createServer();
@@ -318,8 +269,6 @@ static inline void sendRecordingCommand(const char *command) {
  
 // ===================== LOOP =====================
 void loop() {
-   server.handleClient();
- 
    unsigned long now = millis();
    for (int i = 0; i < 6; i++) {
      auto &b = g_buttons[i];

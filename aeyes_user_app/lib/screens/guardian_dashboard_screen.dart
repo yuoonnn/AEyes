@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:aeyes_user_app/l10n/app_localizations.dart';
 import '../services/language_service.dart';
 import '../services/database_service.dart';
+import '../services/auth_service.dart';
 import '../main.dart';
 import '../models/user.dart' as app_user;
 import 'map_screen.dart';
@@ -22,10 +23,12 @@ class GuardianDashboardScreen extends StatefulWidget {
 
 class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   final DatabaseService _databaseService = DatabaseService();
+  final AuthService _authService = AuthService();
   bool isLoading = true;
   app_user.User? guardianProfile;
   bool isDarkMode = false;
   bool isEditingProfile = false;
+  bool isDeletingAccount = false;
 
   // Profile editing controllers
   final TextEditingController nameController = TextEditingController();
@@ -42,12 +45,10 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   Map<String, dynamic>? userLocation;
   Map<String, dynamic>? deviceStatus;
   Map<String, dynamic>? latestDetection;
-  List<Map<String, dynamic>> alerts = [];
 
   // Stream subscriptions
   StreamSubscription<DocumentSnapshot?>? _locationSubscription;
   StreamSubscription<DocumentSnapshot?>? _deviceSubscription;
-  StreamSubscription<QuerySnapshot>? _alertsSubscription;
 
   @override
   void initState() {
@@ -65,11 +66,86 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   void dispose() {
     _locationSubscription?.cancel();
     _deviceSubscription?.cancel();
-    _alertsSubscription?.cancel();
     nameController.dispose();
     phoneController.dispose();
     addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _confirmDeleteAccount() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+    final cancelColor = isDark ? Colors.grey[200] : Colors.grey[700];
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Guardian Account', style: titleStyle),
+        content: Text(
+          'Deleting your guardian account will remove your profile, linked users, pending requests, and messages. This action cannot be undone.\n\nAre you sure you want to proceed?',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            style: TextButton.styleFrom(foregroundColor: cancelColor),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteAccount();
+    }
+  }
+
+  Future<void> _deleteAccount() async {
+    setState(() {
+      isDeletingAccount = true;
+    });
+
+    final result = await _authService.deleteCurrentAccount(isGuardian: true);
+
+    if (!mounted) return;
+
+    setState(() {
+      isDeletingAccount = false;
+    });
+
+    if (result != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result)),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Your guardian account has been deleted.')),
+      );
+      Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+    }
   }
 
   Future<void> _loadProfile() async {
@@ -200,25 +276,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           }
         });
 
-    // Alerts stream
-    _alertsSubscription?.cancel();
-    _alertsSubscription = _databaseService
-        .getUserAlertsStream(selectedUserId!)
-        .listen((snapshot) {
-          if (mounted) {
-            setState(() {
-              alerts = snapshot.docs
-                  .map(
-                    (doc) => {
-                      'alert_id': doc.id,
-                      ...doc.data() as Map<String, dynamic>,
-                    },
-                  )
-                  .toList();
-            });
-          }
-        });
-
     // Load initial data
     _loadInitialData();
   }
@@ -236,14 +293,12 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       final detection = await _databaseService.getLatestDetectionEvent(
         selectedUserId!,
       );
-      final alertsList = await _databaseService.getUserAlerts(selectedUserId!);
 
       if (mounted) {
         setState(() {
           userLocation = location;
           deviceStatus = device;
           latestDetection = detection;
-          alerts = alertsList;
         });
       }
     } catch (e) {
@@ -256,19 +311,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       setState(() {
         isDarkMode = Theme.of(context).brightness == Brightness.dark;
       });
-    }
-  }
-
-  Future<void> _acknowledgeAlert(String alertId) async {
-    try {
-      await _databaseService.acknowledgeAlert(alertId);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Alert acknowledged')));
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -495,6 +537,15 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
     final l10n = AppLocalizations.of(context);
     final languageService = Provider.of<LanguageService>(context);
     final user = FirebaseAuth.instance.currentUser;
+    final int? batteryLevel =
+        deviceStatus != null ? deviceStatus!['battery_level'] as int? : null;
+    final dynamic batteryTimestamp = deviceStatus != null
+        ? (deviceStatus!['last_seen'] ?? deviceStatus!['updated_at'])
+        : null;
+    final String? batteryUpdatedLabel = batteryTimestamp != null
+        ? (l10n?.lastUpdated(_formatTimestamp(batteryTimestamp)) ??
+            'Last updated: ${_formatTimestamp(batteryTimestamp)}')
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -517,6 +568,40 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
               (route) => false,
             ),
           ),
+          if (isDeletingAccount)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 16),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'More options',
+              onSelected: (value) {
+                if (value == 'delete_account') {
+                  _confirmDeleteAccount();
+                }
+              },
+              itemBuilder: (context) => [
+                PopupMenuItem(
+                  value: 'delete_account',
+                  child: Row(
+                    children: const [
+                      Icon(Icons.delete_forever, color: Colors.red),
+                      SizedBox(width: 12),
+                      Text(
+                        'Delete Account',
+                        style: TextStyle(color: Colors.red),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
         ],
       ),
       body: isLoading
@@ -742,7 +827,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                   userLocation = null;
                                   deviceStatus = null;
                                   latestDetection = null;
-                                  alerts = [];
                                 });
                                 _startRealTimeListeners();
                               }
@@ -1040,126 +1124,72 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                 ),
                 SizedBox(height: AppTheme.spacingLG),
 
-                // Battery & Alerts
+                // Device Battery
                 Card(
                   elevation: AppTheme.elevationMedium,
                   shape: RoundedRectangleBorder(
                     borderRadius: AppTheme.borderRadiusMD,
                   ),
-                  child: ExpansionTile(
-                    leading: const Icon(
-                      Icons.battery_alert,
-                      size: 36,
-                      color: AppTheme.warning,
-                    ),
-                    title: Text(
-                      l10n?.batteryAndAlerts(alerts.length) ??
-                          'Battery & Alerts (${alerts.length})',
-                    ),
-                    subtitle:
-                        deviceStatus != null &&
-                            deviceStatus!['battery_level'] != null
-                        ? Text(
-                            l10n?.deviceBattery(
-                                  deviceStatus!['battery_level'] as int,
-                                ) ??
-                                'Device Battery: ${deviceStatus!['battery_level']}%',
-                          )
-                        : Text(
-                            l10n?.noBatteryDataAvailable ??
-                                'No battery data available',
-                          ),
-                    children: [
-                      // Battery Status
-                      if (deviceStatus != null &&
-                          deviceStatus!['battery_level'] != null)
-                        Padding(
-                          padding: AppTheme.paddingMD,
-                          child: Row(
+                  child: Padding(
+                    padding: AppTheme.paddingMD,
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.battery_std,
+                          size: 36,
+                          color: AppTheme.warning,
+                        ),
+                        SizedBox(width: AppTheme.spacingMD),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(
-                                Icons.battery_std,
-                                size: 32,
-                                color:
-                                    (deviceStatus!['battery_level'] as int) < 20
-                                    ? AppTheme.error
-                                    : (deviceStatus!['battery_level'] as int) <
-                                          50
-                                    ? AppTheme.warning
-                                    : AppTheme.success,
-                              ),
-                              SizedBox(width: AppTheme.spacingMD),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      'Device Battery',
-                                      style: AppTheme.textStyleBody.copyWith(
-                                        fontWeight: AppTheme.fontWeightBold,
-                                      ),
-                                    ),
-                                    Text(
-                                      '${deviceStatus!['battery_level']}%',
-                                      style: AppTheme.textStyleTitle.copyWith(
-                                        fontWeight: AppTheme.fontWeightBold,
-                                        color:
-                                            (deviceStatus!['battery_level']
-                                                    as int) <
-                                                20
-                                            ? AppTheme.error
-                                            : (deviceStatus!['battery_level']
-                                                      as int) <
-                                                  50
-                                            ? AppTheme.warning
-                                            : AppTheme.success,
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                'Device Battery',
+                                style: AppTheme.textStyleBodyLarge.copyWith(
+                                  fontWeight: AppTheme.fontWeightBold,
                                 ),
                               ),
+                              SizedBox(height: AppTheme.spacingXS),
+                              if (batteryLevel != null)
+                                Text(
+                                  l10n?.deviceBattery(batteryLevel) ??
+                                      'Device Battery: $batteryLevel%',
+                                  style: AppTheme.textStyleTitle.copyWith(
+                                    fontWeight: AppTheme.fontWeightBold,
+                                    color: batteryLevel < 20
+                                        ? AppTheme.error
+                                        : batteryLevel < 50
+                                            ? AppTheme.warning
+                                            : AppTheme.success,
+                                  ),
+                                )
+                              else
+                                Text(
+                                  l10n?.noBatteryDataAvailable ??
+                                      'No battery data available',
+                                  style: AppTheme.textStyleBody
+                                      .copyWith(color: AppTheme.textSecondary),
+                                ),
+                              if (batteryUpdatedLabel != null)
+                                Padding(
+                                  padding: EdgeInsets.only(
+                                    top: AppTheme.spacingXS,
+                                  ),
+                                  child: Text(
+                                    batteryUpdatedLabel,
+                                    style:
+                                        AppTheme.textStyleCaption.copyWith(
+                                      color: AppTheme.textSecondary,
+                                    ),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
-                      if (deviceStatus != null &&
-                          deviceStatus!['battery_level'] != null &&
-                          alerts.isNotEmpty)
-                        const Divider(),
-                      // Alerts
-                      if (alerts.isEmpty)
-                        Padding(
-                          padding: AppTheme.paddingMD,
-                          child: Text(
-                            l10n?.noActiveAlerts ?? 'No active alerts',
-                          ),
-                        )
-                      else
-                        ...alerts.map((alert) {
-                          return ListTile(
-                            leading: Icon(
-                              alert['severity'] == 'critical'
-                                  ? Icons.error
-                                  : Icons.info,
-                              color: alert['severity'] == 'critical'
-                                  ? AppTheme.error
-                                  : AppTheme.info,
-                            ),
-                            title: Text(
-                              alert['alert_type'] as String? ?? 'Alert',
-                            ),
-                            subtitle: Text(
-                              _formatTimestamp(alert['triggered_at']),
-                            ),
-                            trailing: IconButton(
-                              icon: const Icon(Icons.check),
-                              onPressed: () => _acknowledgeAlert(
-                                alert['alert_id'] as String,
-                              ),
-                              tooltip: l10n?.acknowledge ?? 'Acknowledge',
-                            ),
-                          );
-                        }),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
                 SizedBox(height: AppTheme.spacingLG),

@@ -18,17 +18,25 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
   final TextEditingController passwordController = TextEditingController();
   bool isLoading = false;
   String? errorMessage;
+  bool isPasswordVisible = false;
 
   Future<void> _handleLogin() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() {
+        errorMessage = 'Please enter both email and password before continuing.';
+      });
+      return;
+    }
+
     setState(() {
       isLoading = true;
       errorMessage = null;
     });
     final authService = AuthService();
-    String? error = await authService.login(
-      emailController.text.trim(),
-      passwordController.text.trim(),
-    );
+    String? error = await authService.login(email, password);
     setState(() {
       isLoading = false;
     });
@@ -125,6 +133,31 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  decoration: BoxDecoration(
+                    color: (isDark ? Colors.orange[900] : Colors.orange[100])?.withOpacity(0.9),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.info_outline, color: Colors.orange),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'New guardian? Please register first before logging in.',
+                          style: TextStyle(
+                            color: isDark ? Colors.white : Colors.orange[900],
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
                 CustomTextField(
                   hintText: 'Email',
                   controller: emailController,
@@ -133,7 +166,18 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                 CustomTextField(
                   hintText: 'Password',
                   controller: passwordController,
-                  obscureText: true,
+                  obscureText: !isPasswordVisible,
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      isPasswordVisible ? Icons.visibility_off : Icons.visibility,
+                      color: isDark ? Colors.grey[300] : Colors.grey[600],
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        isPasswordVisible = !isPasswordVisible;
+                      });
+                    },
+                  ),
                 ),
                 const SizedBox(height: 24),
                 if (isLoading)

@@ -116,7 +116,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final greenAccent = const Color(0xFF66BB6A);
 
     return MainScaffold(
-      currentIndex: 3,
+      currentIndex: 4,
       child: Scaffold(
         appBar: AppBar(title: Text(l10n?.settings ?? 'Settings'), elevation: 0),
         body: ListView(
