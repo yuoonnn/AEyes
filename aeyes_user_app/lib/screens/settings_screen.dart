@@ -5,6 +5,7 @@ import '../widgets/custom_button.dart';
 import '../models/settings.dart';
 import '../main.dart';
 import '../widgets/main_scaffold.dart';
+import '../services/button_sound_service.dart';
 import '../services/language_service.dart';
 import '../services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -20,6 +21,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String getSelectedLanguageName(Locale locale) {
     return LanguageService.languageNames[locale.languageCode] ?? 'English';
   }
+
   final DatabaseService _databaseService = DatabaseService();
   double volume = 0.5;
   double beepVolume = 0.5;
@@ -44,13 +46,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       final settings = await _databaseService.getSettings();
       if (settings != null) {
+        final loadedVolume = settings.beepVolume / 100.0;
         setState(() {
           volume = settings.audioVolume / 100.0; // Convert 0-100 to 0.0-1.0
-          beepVolume = settings.beepVolume / 100.0; // Convert 0-100 to 0.0-1.0
+          beepVolume = loadedVolume; // Convert 0-100 to 0.0-1.0
           notificationsEnabled = settings.emergencyContactsEnabled;
           isDarkMode = Theme.of(context).brightness == Brightness.dark;
           isLoading = false;
         });
+        ButtonSoundService().setVolume(loadedVolume);
       } else {
         setState(() => isLoading = false);
       }
@@ -69,7 +73,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
     });
 
     try {
-      final languageService = Provider.of<LanguageService>(context, listen: false);
+      final languageService = Provider.of<LanguageService>(
+        context,
+        listen: false,
+      );
       final currentLanguage = languageService.locale.languageCode;
 
       final settings = Settings(
@@ -83,6 +90,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       );
 
       await _databaseService.saveSettings(settings);
+      ButtonSoundService().setVolume(beepVolume);
 
       setState(() {
         successMessage = l10n?.settingsSaved ?? 'Settings saved';
@@ -104,17 +112,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final languageService = Provider.of<LanguageService>(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final green = const Color(0xFF388E3C);
     final greenAccent = const Color(0xFF66BB6A);
-    
+
     return MainScaffold(
       currentIndex: 3,
       child: Scaffold(
-        appBar: AppBar(
-          title: Text(l10n?.settings ?? 'Settings'),
-          elevation: 0,
-        ),
+        appBar: AppBar(title: Text(l10n?.settings ?? 'Settings'), elevation: 0),
         body: ListView(
           padding: const EdgeInsets.all(20.0),
           children: [
@@ -131,10 +135,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   title: l10n?.language ?? 'Language',
                   trailing: DropdownButton<Locale>(
                     value: languageService.locale,
-                    items: LanguageService.supportedLocales.map((locale) => DropdownMenuItem(
-                      value: locale,
-                      child: Text(LanguageService.languageNames[locale.languageCode] ?? locale.languageCode),
-                    )).toList(),
+                    items: LanguageService.supportedLocales
+                        .map(
+                          (locale) => DropdownMenuItem(
+                            value: locale,
+                            child: Text(
+                              LanguageService.languageNames[locale
+                                      .languageCode] ??
+                                  locale.languageCode,
+                            ),
+                          ),
+                        )
+                        .toList(),
                     onChanged: (locale) {
                       if (locale != null) {
                         languageService.setLanguage(locale);
@@ -145,9 +157,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // Audio Settings Section
             _buildSectionCard(
               context: context,
@@ -181,7 +193,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   leading: Icons.hearing,
                   title: l10n?.beepVolume ?? 'Beep Volume',
-                  subtitle: l10n?.boneConductionSpeaker ?? 'Bone Conduction Speaker',
+                  subtitle:
+                      l10n?.boneConductionSpeaker ?? 'Bone Conduction Speaker',
                   trailing: SizedBox(
                     width: 150,
                     child: Slider(
@@ -194,15 +207,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         setState(() {
                           beepVolume = val;
                         });
+                        ButtonSoundService().setVolume(val);
                       },
                     ),
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 20),
-            
+
             // App Preferences Section
             _buildSectionCard(
               context: context,
@@ -214,7 +228,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   leading: Icons.notifications,
                   title: l10n?.notifications ?? 'Notifications',
-                  subtitle: l10n?.enablePushNotifications ?? 'Enable push notifications',
+                  subtitle:
+                      l10n?.enablePushNotifications ??
+                      'Enable push notifications',
                   trailing: Switch(
                     value: notificationsEnabled,
                     activeColor: green,
@@ -230,7 +246,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   context: context,
                   leading: isDarkMode ? Icons.dark_mode : Icons.light_mode,
                   title: l10n?.darkMode ?? 'Dark Mode',
-                  subtitle: l10n?.switchBetweenThemes ?? 'Switch between light and dark theme',
+                  subtitle:
+                      l10n?.switchBetweenThemes ??
+                      'Switch between light and dark theme',
                   trailing: Switch(
                     value: isDarkMode,
                     activeColor: green,
@@ -239,26 +257,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         isDarkMode = val;
                       });
                       // Update global theme
-                      MyApp.themeModeNotifier.value = val ? ThemeMode.dark : ThemeMode.light;
+                      MyApp.themeModeNotifier.value = val
+                          ? ThemeMode.dark
+                          : ThemeMode.light;
                     },
                   ),
                 ),
               ],
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             // Save Button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8.0),
               child: CustomButton(
-                label: isLoading ? 'Saving...' : (l10n?.saveSettings ?? 'Save Settings'),
+                label: isLoading
+                    ? 'Saving...'
+                    : (l10n?.saveSettings ?? 'Save Settings'),
                 onPressed: isLoading ? () {} : () => _saveSettings(),
                 color: green,
                 textColor: Colors.white,
               ),
             ),
-            
+
             if (successMessage != null) ...[
               const SizedBox(height: 16),
               Container(
@@ -286,14 +308,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ],
-            
+
             const SizedBox(height: 20),
           ],
         ),
       ),
     );
   }
-  
+
   Widget _buildSectionCard({
     required BuildContext context,
     required String title,
@@ -303,9 +325,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }) {
     return Card(
       elevation: 2,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Padding(
         padding: const EdgeInsets.all(20.0),
         child: Column(
@@ -338,7 +358,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ),
     );
   }
-  
+
   Widget _buildSettingItem({
     required BuildContext context,
     required IconData leading,
@@ -365,10 +385,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 const SizedBox(height: 4),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey.shade600,
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
                 ),
               ],
             ],
@@ -378,4 +395,4 @@ class _SettingsScreenState extends State<SettingsScreen> {
       ],
     );
   }
-} 
+}

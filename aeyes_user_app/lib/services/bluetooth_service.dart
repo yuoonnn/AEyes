@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
+import 'button_sound_service.dart';
 import 'media_control_service.dart';
 
 /// Integrated version: supports Option B BLE image streaming protocol.
@@ -191,6 +192,9 @@ class AppBluetoothService {
                 if (parsed != null) {
                   if (parsed['type'] == 'button') {
                     final buttonData = parsed['data'] as String;
+                    unawaited(
+                      ButtonSoundService().playForButtonEvent(buttonData),
+                    );
                     // Automatically route media buttons (4/5/6) to system media controls
                     if (buttonData.startsWith('4:') ||
                         buttonData.startsWith('5:') ||
