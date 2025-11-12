@@ -62,11 +62,7 @@ void main() async {
   final bluetoothService =
       AppBluetoothService(); // Changed to AppBluetoothService
   // Read OpenAI API key from a secure runtime define (never commit keys)
-  const openAiKey = String.fromEnvironment(
-    'OPENAI_API_KEY',
-    defaultValue:
-        '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',
-  );
+  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();
