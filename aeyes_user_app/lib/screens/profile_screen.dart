@@ -391,22 +391,29 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Widget build(BuildContext context) {
     return MainScaffold(
       currentIndex: 3,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Profile'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout),
-              tooltip: 'Logout',
-              onPressed: () async {
-                await _authService.logout();
-                if (mounted) {
-                  Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
-                }
-              },
-            ),
-          ],
-        ),
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (!didPop) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Profile'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                tooltip: 'Logout',
+                onPressed: () async {
+                  await _authService.logout();
+                  if (mounted) {
+                    Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
+                  }
+                },
+              ),
+            ],
+          ),
         body: Center(
           child: SingleChildScrollView(
             child: Card(
@@ -680,6 +687,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
+        ),
         ),
       ),
     );

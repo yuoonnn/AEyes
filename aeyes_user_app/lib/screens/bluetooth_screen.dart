@@ -5,6 +5,7 @@ import '../widgets/custom_button.dart';
 import '../services/bluetooth_service.dart';
 import '../services/openai_service.dart';
 import '../services/tts_service.dart';
+import '../services/foreground_service.dart';
 import '../widgets/main_scaffold.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -87,6 +88,8 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
       setState(() {
         hasPermission = true;
       });
+      // Start foreground service now that permissions are granted
+      await ForegroundServiceController.startAfterPermissionsGranted();
     } else {
       setState(() {
         hasPermission = false;
@@ -292,19 +295,26 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   Widget build(BuildContext context) {
     return MainScaffold(
       currentIndex: 2,
-      child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Bluetooth - ESP32 Connection'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          foregroundColor: Colors.white,
-          actions: [
-            IconButton(
-              tooltip: 'Open Logs',
-              icon: const Icon(Icons.list_alt),
-              onPressed: _openLogScreen,
-            ),
-          ],
-        ),
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (!didPop) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(
+            title: const Text('Bluetooth - ESP32 Connection'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            foregroundColor: Colors.white,
+            actions: [
+              IconButton(
+                tooltip: 'Open Logs',
+                icon: const Icon(Icons.list_alt),
+                onPressed: _openLogScreen,
+              ),
+            ],
+          ),
         body: Padding(
           padding: const EdgeInsets.all(16.0),
           child: ListView(
@@ -436,6 +446,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
               ],
             ],
           ),
+        ),
         ),
       ),
     );

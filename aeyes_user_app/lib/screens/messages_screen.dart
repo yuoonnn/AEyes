@@ -81,17 +81,24 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Messages from Guardians'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
-            tooltip: 'Refresh',
-          ),
-        ],
-      ),
+    return PopScope(
+      canPop: false,
+      onPopInvoked: (didPop) {
+        if (!didPop) {
+          Navigator.pushReplacementNamed(context, '/home');
+        }
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Messages from Guardians'),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.refresh),
+              onPressed: () => setState(() {}),
+              tooltip: 'Refresh',
+            ),
+          ],
+        ),
       body: StreamBuilder<QuerySnapshot>(
         stream: _databaseService.getMessagesStream(),
         builder: (context, snapshot) {
@@ -238,6 +245,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
             },
           );
         },
+      ),
       ),
     );
   }

@@ -1,7 +1,7 @@
 #!/bin/sh
 # This is a generated file; do not edit or check into version control.
-export "FLUTTER_ROOT=D:\Program Stuff\flutter_windows_3.32.5-stable\flutter"
-export "FLUTTER_APPLICATION_PATH=D:\Program Project\AEyes Project\aeyes_user_app"
+export "FLUTTER_ROOT=C:\Flutter\flutter_windows_3.27.3-stable\flutter"
+export "FLUTTER_APPLICATION_PATH=D:\Smart InnoGen4\1. A-Eyes Program\Mobile-App\AEyes\aeyes_user_app"
 export "COCOAPODS_PARALLEL_CODE_SIGN=true"
 export "FLUTTER_BUILD_DIR=build"
 export "FLUTTER_BUILD_NAME=1.0.0"

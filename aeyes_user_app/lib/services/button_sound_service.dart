@@ -7,7 +7,8 @@ import 'package:flutter/foundation.dart';
 /// Handles playback of short beep sounds when hardware buttons are pressed.
 ///
 /// The beeps are generated programmatically so no audio assets are required.
-/// Button 3 uses a lower tone to differentiate it from buttons 4–6.
+/// Button 2 (capture) uses a medium tone, button 3 uses a lower tone,
+/// while buttons 4–6 share the same higher tone.
 class ButtonSoundService {
   ButtonSoundService._internal();
 
@@ -21,6 +22,7 @@ class ButtonSoundService {
 
   Uint8List? _standardBeep;
   Uint8List? _deepBeep;
+  Uint8List? _captureBeep;
   double _volume = 0.5;
   bool _initialized = false;
   bool _initializing = false;
@@ -33,15 +35,15 @@ class ButtonSoundService {
   /// Plays the appropriate beep sound for the given button event.
   ///
   /// `buttonData` follows the format `<id>:<event>` as emitted by the ESP32.
-  /// Buttons 1 and 2 are silent, button 3 has a distinct lower tone, while
-  /// buttons 4–6 share the same higher tone.
+  /// Button 1 is silent, button 2 (capture) has a medium tone, button 3 has
+  /// a distinct lower tone, while buttons 4–6 share the same higher tone.
   Future<void> playForButtonEvent(String buttonData) async {
     final colonIndex = buttonData.indexOf(':');
     final buttonId =
         colonIndex == -1 ? buttonData.trim() : buttonData.substring(0, colonIndex).trim();
 
     // Ignore unknown or muted buttons.
-    if (buttonId.isEmpty || buttonId == '1' || buttonId == '2') {
+    if (buttonId.isEmpty || buttonId == '1') {
       return;
     }
 
@@ -56,7 +58,11 @@ class ButtonSoundService {
 
     await _ensureInitialized();
 
-    final beepBytes = buttonId == '3' ? _deepBeep : _standardBeep;
+    final beepBytes = buttonId == '2'
+        ? _captureBeep
+        : buttonId == '3'
+            ? _deepBeep
+            : _standardBeep;
     if (beepBytes == null) {
       return;
     }
@@ -90,6 +96,10 @@ class ButtonSoundService {
         frequencyHz: 440, // Lower tone for button 3
         durationMs: 140,
       );
+      _captureBeep ??= _generateBeepBytes(
+        frequencyHz: 660, // Medium tone for button 2 (capture)
+        durationMs: 100,
+      );
       _initialized = true;
     } finally {
       _initializing = false;
@@ -102,6 +112,7 @@ class ButtonSoundService {
     const allowedEventSuffixes = <String>[
       'SHORT',
       'LONG',
+      'CAPTURE',
       'MEDIA_PLAYPAUSE',
       'MEDIA_LONG',
       'VOLUME_UP',

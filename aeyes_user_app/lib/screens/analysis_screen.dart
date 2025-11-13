@@ -14,8 +14,15 @@ class AnalysisScreen extends StatelessWidget {
 
     return MainScaffold(
       currentIndex: 1, // will be mapped in MainScaffold
-      child: Scaffold(
-        appBar: AppBar(title: const Text('AI Analysis')),
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (!didPop) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(title: const Text('AI Analysis')),
         body: ListView(
           padding: const EdgeInsets.all(16),
           children: [
@@ -50,6 +57,7 @@ class AnalysisScreen extends StatelessWidget {
                 );
               }),
           ],
+        ),
         ),
       ),
     );

@@ -117,8 +117,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     return MainScaffold(
       currentIndex: 4,
-      child: Scaffold(
-        appBar: AppBar(title: Text(l10n?.settings ?? 'Settings'), elevation: 0),
+      child: PopScope(
+        canPop: false,
+        onPopInvoked: (didPop) {
+          if (!didPop) {
+            Navigator.pushReplacementNamed(context, '/home');
+          }
+        },
+        child: Scaffold(
+          appBar: AppBar(title: Text(l10n?.settings ?? 'Settings'), elevation: 0),
         body: ListView(
           padding: const EdgeInsets.all(20.0),
           children: [
@@ -311,6 +318,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
             const SizedBox(height: 20),
           ],
+        ),
         ),
       ),
     );

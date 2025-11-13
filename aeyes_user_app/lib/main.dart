@@ -53,16 +53,21 @@ void main() async {
     await Firebase.initializeApp();
   }
 
-  // Start lightweight foreground service on Android to keep BLE alive
-  await ForegroundServiceController.initialize();
-  await ForegroundServiceController.startIfNeeded();
+  // Initialize notification service first
   await NotificationService.initialize();
+
+  // Initialize foreground service (but don't start it yet - will start after permissions are granted)
+  await ForegroundServiceController.initialize();
 
   // Initialize your services here
   final bluetoothService =
       AppBluetoothService(); // Changed to AppBluetoothService
   // Read OpenAI API key from a secure runtime define (never commit keys)
-  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+  const openAiKey = String.fromEnvironment(
+    'OPENAI_API_KEY',
+    defaultValue:
+        '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',
+  );
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();

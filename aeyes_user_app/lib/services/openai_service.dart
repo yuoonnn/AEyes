@@ -50,7 +50,7 @@ class OpenAIService {
               "type": "text",
               "text":
                   prompt ??
-                  "Describe what is in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed",
+                  "You are assisting a blind user. Describe what is in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed",
             },
             {
               "type": "image_url",
