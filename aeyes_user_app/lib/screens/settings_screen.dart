@@ -9,6 +9,7 @@ import '../services/button_sound_service.dart';
 import '../services/language_service.dart';
 import '../services/database_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'predefined_messages_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
@@ -268,6 +269,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           ? ThemeMode.dark
                           : ThemeMode.light;
                     },
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: 20),
+
+            // SMS Settings Section
+            _buildSectionCard(
+              context: context,
+              title: 'SMS Settings',
+              icon: Icons.message,
+              color: green,
+              children: [
+                _buildSettingItem(
+                  context: context,
+                  leading: Icons.message,
+                  title: 'Predefined SMS Messages',
+                  subtitle: 'Edit messages for Button 1 alerts',
+                  trailing: IconButton(
+                    icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                    onPressed: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const PredefinedMessagesScreen(),
+                        ),
+                      );
+                    },
+                    tooltip: 'Edit Messages',
                   ),
                 ),
               ],

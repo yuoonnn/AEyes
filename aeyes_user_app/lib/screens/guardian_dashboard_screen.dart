@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../main.dart';
 import '../models/user.dart' as app_user;
 import 'map_screen.dart';
+import 'guardian_messages_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_textfield.dart';
 
@@ -1196,6 +1197,45 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
 
                 // Guidance Manual
                 _buildGuidanceManualCard(),
+                SizedBox(height: AppTheme.spacingLG),
+
+                // Message Inbox (SMS Alerts from Users)
+                Card(
+                  elevation: AppTheme.elevationMedium,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppTheme.borderRadiusMD,
+                  ),
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.inbox,
+                      size: 36,
+                      color: AppTheme.warning,
+                    ),
+                    title: const Text('Message Inbox'),
+                    subtitle: const Text(
+                      'View SMS alerts and messages from users.',
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GuardianMessagesScreen(),
+                          ),
+                        );
+                      },
+                    ),
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const GuardianMessagesScreen(),
+                        ),
+                      );
+                    },
+                  ),
+                ),
                 SizedBox(height: AppTheme.spacingLG),
 
                 // Communication

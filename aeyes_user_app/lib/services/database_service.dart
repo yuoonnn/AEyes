@@ -689,6 +689,37 @@ class DatabaseService {
         .limit(50)
         .snapshots();
   }
+  
+  /// Get messages for guardian (messages from users)
+  /// Returns messages where direction is 'user_to_guardian' for the linked users
+  /// Note: This uses a workaround since Firestore doesn't support complex queries
+  /// We filter by guardian_id from the guardian links, then filter client-side
+  Stream<QuerySnapshot> getGuardianMessagesStream() {
+    final user = _auth.currentUser;
+    if (user?.email == null) {
+      throw Exception('Guardian not authenticated');
+    }
+    
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    
+    // Get guardian document IDs first (these are the guardian_id values in messages)
+    // We'll query messages by guardian_id, but we need to get the guardian IDs first
+    // Since we can't do a complex query, we'll get all messages with direction 'user_to_guardian'
+    // and filter client-side by checking if guardian_id matches any of our guardian links
+    
+    // Alternative approach: Query all messages with direction 'user_to_guardian'
+    // and filter by guardian_id in the guardian_messages_screen
+    // But for now, let's use a simpler approach - get messages where guardian_id matches
+    // the guardian document IDs from the guardians collection
+    
+    return _firestore
+        .collection('messages')
+        .where('direction', isEqualTo: 'user_to_guardian')
+        .orderBy('created_at', descending: true)
+        .limit(100) // Get more messages, filter client-side
+        .snapshots();
+  }
 
   /// Mark a message as read
   Future<void> markMessageAsRead(String messageId) async {

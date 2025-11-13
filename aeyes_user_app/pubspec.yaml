@@ -37,6 +37,7 @@ dependencies:
   battery_plus: ^6.0.2
   record: ^5.2.1  # Audio recording for ESP32 button-triggered voice commands
   audioplayers: ^5.2.1
+  geocoding: ^3.0.0  # For reverse geocoding (address lookup)
 
 dev_dependencies:
   flutter_test:

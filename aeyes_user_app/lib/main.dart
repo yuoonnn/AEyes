@@ -182,6 +182,31 @@ void main() async {
     if (_pendingVoiceCommand != null &&
         _voiceCommandTimestamp != null &&
         DateTime.now().difference(_voiceCommandTimestamp!).inSeconds < 5) {
+      
+      // Check if this is a location command (should NOT go to OpenAI)
+      if (_pendingVoiceCommand != null) {
+        final lowerCommand = _pendingVoiceCommand!.toLowerCase().trim();
+        final isLocationCommand = lowerCommand.contains('find ') ||
+            lowerCommand.contains('where is ') ||
+            lowerCommand.contains('nearby') ||
+            lowerCommand.contains('around me') ||
+            lowerCommand.contains('what\'s near') ||
+            lowerCommand.contains('my location') ||
+            lowerCommand.contains('where am i') ||
+            lowerCommand.contains('current location');
+        
+        if (isLocationCommand) {
+          bluetoothService.log(
+            '📍 Location command detected, skipping OpenAI image analysis: "$_pendingVoiceCommand"',
+          );
+          // Clear the command but don't use it for image analysis
+          _pendingVoiceCommand = null;
+          _voiceCommandTimestamp = null;
+          // Location commands are handled by phone voice service, not OpenAI
+          return;
+        }
+      }
+      
       voicePrompt = _pendingVoiceCommand;
       bluetoothService.log('🎤 Using voice command as prompt: "$voicePrompt"');
       // Clear the pending command after using it
@@ -240,7 +265,7 @@ class MyApp extends StatelessWidget {
   static DateTime? _lastMessageSeenAt;
 
   void _startGuardianMessageListener() {
-    // Listen to messages for local notifications
+    // Listen to messages for local notifications and auto TTS
     final db = DatabaseService();
     try {
       db.getMessagesStream().listen((snapshot) {
@@ -253,6 +278,8 @@ class MyApp extends StatelessWidget {
                 createdAt.isAfter(_lastMessageSeenAt!)) {
               _lastMessageSeenAt = createdAt;
               final content = (data['content'] as String?) ?? 'New message';
+              
+              // Show notification
               NotificationService.showSimple(
                 id: 2001,
                 title: 'Guardian message',
@@ -260,6 +287,23 @@ class MyApp extends StatelessWidget {
                     ? '${content.substring(0, 100)}…'
                     : content,
               );
+              
+              // Auto TTS: Automatically play the message via TTS
+              try {
+                // Stop any current TTS
+                ttsService.stop();
+                // Speak the message after a short delay
+                Future.delayed(const Duration(milliseconds: 500), () async {
+                  try {
+                    await ttsService.speak('Message from guardian: $content');
+                    print('🔊 Auto TTS: Played guardian message');
+                  } catch (e) {
+                    print('Error in auto TTS: $e');
+                  }
+                });
+              } catch (e) {
+                print('Error setting up auto TTS: $e');
+              }
             }
           }
         }
