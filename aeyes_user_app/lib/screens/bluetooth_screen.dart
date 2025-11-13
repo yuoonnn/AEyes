@@ -123,12 +123,30 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text("Bluetooth Notice"),
-        content: Text(message),
+        backgroundColor: Colors.white,
+        title: const Text(
+          "Bluetooth Notice",
+          style: TextStyle(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(
+            color: Colors.black87,
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
+            child: const Text(
+              "OK",
+              style: TextStyle(
+                color: Colors.green,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
           ),
         ],
       ),
