@@ -729,6 +729,24 @@ class DatabaseService {
         .update({'is_read': true});
   }
 
+  /// Delete a message
+  Future<void> deleteMessage(String messageId) async {
+    if (currentUserId == null) throw Exception('User not authenticated');
+    
+    // Verify the message belongs to the current user before deleting
+    final doc = await _firestore.collection('messages').doc(messageId).get();
+    if (!doc.exists) {
+      throw Exception('Message not found');
+    }
+    
+    final data = doc.data()!;
+    if (data['user_id'] != currentUserId) {
+      throw Exception('You can only delete your own messages');
+    }
+    
+    await _firestore.collection('messages').doc(messageId).delete();
+  }
+
   // ========== EMERGENCY ALERT OPERATIONS ==========
   
   /// Create an emergency alert

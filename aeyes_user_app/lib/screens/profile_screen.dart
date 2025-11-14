@@ -27,6 +27,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Map<String, dynamic>> linkedGuardians = [];
   final TextEditingController guardianEmailController = TextEditingController();
   final TextEditingController guardianNameController = TextEditingController();
+  final TextEditingController guardianPhoneController = TextEditingController();
   bool isDeletingAccount = false;
 
   @override
@@ -40,6 +41,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     guardianEmailController.dispose();
     guardianNameController.dispose();
+    guardianPhoneController.dispose();
     super.dispose();
   }
 
@@ -68,15 +70,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _databaseService.linkGuardian(
         guardianEmail: guardianEmailController.text.trim(),
         guardianName: guardianNameController.text.trim(),
+        phone: guardianPhoneController.text.trim().isNotEmpty 
+            ? guardianPhoneController.text.trim() 
+            : null,
       );
       
+      final phoneWasEmpty = guardianPhoneController.text.trim().isEmpty;
       guardianEmailController.clear();
       guardianNameController.clear();
+      guardianPhoneController.clear();
       await _loadGuardians();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Guardian link request sent!')),
+          SnackBar(
+            content: Text(phoneWasEmpty
+                ? 'Guardian linked! Note: Add phone number for SMS alerts.'
+                : 'Guardian linked successfully!'),
+          ),
         );
         Navigator.pop(context); // Close dialog
       }
@@ -229,6 +240,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
         );
     final cancelColor = isDark ? Colors.grey[200] : Colors.grey[700];
 
+    // Clear controllers when opening dialog
+    guardianNameController.clear();
+    guardianEmailController.clear();
+    guardianPhoneController.clear();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -246,6 +262,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 hintText: 'Guardian Email',
                 controller: guardianEmailController,
                 keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              CustomTextField(
+                hintText: 'Guardian Phone Number (for SMS alerts)',
+                controller: guardianPhoneController,
+                keyboardType: TextInputType.phone,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Phone number is required for SMS emergency alerts',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic,
+                ),
               ),
             ],
           ),

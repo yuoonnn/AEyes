@@ -31,6 +31,9 @@ import 'services/speech_service.dart';
 import 'services/database_service.dart';
 import 'services/media_control_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:async';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'models/user.dart' as app_user;
 
 // === Theme ===
 import 'theme/app_theme.dart';
@@ -232,20 +235,171 @@ void main() async {
     }
   };
 
+  final app = MyApp(
+    bluetoothService: bluetoothService,
+    openAIService: openAIService,
+    speechService: speechService,
+    ttsService: ttsService,
+  );
+
   runApp(
     MultiProvider(
       providers: [
         ChangeNotifierProvider.value(value: languageService),
         ChangeNotifierProvider.value(value: aiState),
       ],
-      child: MyApp(
-        bluetoothService: bluetoothService,
-        openAIService: openAIService,
-        speechService: speechService,
-        ttsService: ttsService,
-      ),
+      child: app,
     ),
   );
+  
+  // Start guardian message listener after app is initialized
+  // This ensures it works even when app is in background
+  Future.delayed(const Duration(seconds: 1), () {
+    app.startGuardianMessageListener();
+  });
+}
+
+/// Wrapper widget that checks authentication state and routes accordingly
+/// This ensures users stay logged in after closing the app
+class _AuthWrapper extends StatelessWidget {
+  final AppBluetoothService bluetoothService;
+  final OpenAIService openAIService;
+  final SpeechService? speechService;
+  final TTSService ttsService;
+
+  const _AuthWrapper({
+    required this.bluetoothService,
+    required this.openAIService,
+    this.speechService,
+    required this.ttsService,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen to auth state changes - this automatically handles persistence
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        // Show loading while checking auth state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Image.asset('assets/AEye Logo.png', height: 100),
+                  const SizedBox(height: 24),
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  const Text('Loading...'),
+                ],
+              ),
+            ),
+          );
+        }
+
+        final user = snapshot.data;
+
+        // No user logged in, show role selection
+        if (user == null) {
+          return const RoleSelectionScreen();
+        }
+
+        // User is logged in, check their role and show appropriate screen
+        // Use a StatefulWidget to cache the profile check
+        return _UserRoleChecker(
+          userId: user.uid,
+          bluetoothService: bluetoothService,
+          openAIService: openAIService,
+          speechService: speechService,
+          ttsService: ttsService,
+        );
+      },
+    );
+  }
+}
+
+/// Widget that checks user role and displays appropriate screen
+class _UserRoleChecker extends StatefulWidget {
+  final String userId;
+  final AppBluetoothService bluetoothService;
+  final OpenAIService openAIService;
+  final SpeechService? speechService;
+  final TTSService ttsService;
+
+  const _UserRoleChecker({
+    required this.userId,
+    required this.bluetoothService,
+    required this.openAIService,
+    this.speechService,
+    required this.ttsService,
+  });
+
+  @override
+  State<_UserRoleChecker> createState() => _UserRoleCheckerState();
+}
+
+class _UserRoleCheckerState extends State<_UserRoleChecker> {
+  app_user.User? _cachedProfile;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProfile();
+  }
+
+  Future<void> _loadProfile() async {
+    try {
+      final profile = await DatabaseService().getUserProfile();
+      if (mounted) {
+        setState(() {
+          _cachedProfile = profile;
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading user profile: $e');
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_isLoading) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Image.asset('assets/AEye Logo.png', height: 100),
+              const SizedBox(height: 24),
+              const CircularProgressIndicator(),
+              const SizedBox(height: 16),
+              const Text('Loading profile...'),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Check if user is a guardian
+    if (_cachedProfile != null && _cachedProfile!.role == 'guardian') {
+      return const GuardianDashboardScreen();
+    } else {
+      // Regular user - show home screen
+      return HomeScreen(
+        bluetoothService: widget.bluetoothService,
+        openAIService: widget.openAIService,
+        speechService: widget.speechService,
+        ttsService: widget.ttsService,
+      );
+    }
+  }
 }
 
 class MyApp extends StatelessWidget {
@@ -263,53 +417,126 @@ class MyApp extends StatelessWidget {
   });
 
   static DateTime? _lastMessageSeenAt;
+  static StreamSubscription? _messageStreamSubscription;
+  static bool _listenerInitialized = false;
+  
+  /// Stop the guardian message listener (call this on logout)
+  static void stopGuardianMessageListener() {
+    _messageStreamSubscription?.cancel();
+    _messageStreamSubscription = null;
+    _listenerInitialized = false;
+    _lastMessageSeenAt = null;
+    print('🛑 Guardian message listener stopped');
+  }
 
-  void _startGuardianMessageListener() {
-    // Listen to messages for local notifications and auto TTS
+  // Make this public so it can be called from main()
+  void startGuardianMessageListener() {
+    // Only initialize once to avoid multiple listeners
+    if (_listenerInitialized && _messageStreamSubscription != null) {
+      // Check if user is still authenticated, restart if needed
+      final db = DatabaseService();
+      if (db.currentUserId == null) {
+        _messageStreamSubscription?.cancel();
+        _messageStreamSubscription = null;
+        _listenerInitialized = false;
+      }
+      return;
+    }
+    
+    // Only start listener if user is authenticated
     final db = DatabaseService();
+    if (db.currentUserId == null) {
+      // User not authenticated, stop any existing listener
+      _messageStreamSubscription?.cancel();
+      _messageStreamSubscription = null;
+      _listenerInitialized = false;
+      return;
+    }
+    
+    // Cancel existing listener if any
+    _messageStreamSubscription?.cancel();
+    
+    // Listen to messages for local notifications and auto TTS
     try {
-      db.getMessagesStream().listen((snapshot) {
-        for (final doc in snapshot.docs) {
-          final data = doc.data() as Map<String, dynamic>;
-          if (data['direction'] == 'guardian_to_user') {
-            final ts = data['created_at'];
-            final createdAt = ts is Timestamp ? ts.toDate() : DateTime.now();
-            if (_lastMessageSeenAt == null ||
-                createdAt.isAfter(_lastMessageSeenAt!)) {
-              _lastMessageSeenAt = createdAt;
-              final content = (data['content'] as String?) ?? 'New message';
-              
-              // Show notification
-              NotificationService.showSimple(
-                id: 2001,
-                title: 'Guardian message',
-                body: content.length > 100
-                    ? '${content.substring(0, 100)}…'
-                    : content,
-              );
-              
-              // Auto TTS: Automatically play the message via TTS
-              try {
-                // Stop any current TTS
-                ttsService.stop();
-                // Speak the message after a short delay
-                Future.delayed(const Duration(milliseconds: 500), () async {
-                  try {
-                    await ttsService.speak('Message from guardian: $content');
-                    print('🔊 Auto TTS: Played guardian message');
-                  } catch (e) {
-                    print('Error in auto TTS: $e');
-                  }
-                });
-              } catch (e) {
-                print('Error setting up auto TTS: $e');
-              }
-            }
-          }
+      _messageStreamSubscription = db.getMessagesStream().listen((snapshot) {
+        _handleNewGuardianMessages(snapshot);
+      }, onError: (error) {
+        print('Error in message stream: $error');
+        // If error is due to authentication, stop listening
+        if (error.toString().contains('not authenticated')) {
+          _messageStreamSubscription?.cancel();
+          _messageStreamSubscription = null;
+          _listenerInitialized = false;
         }
       });
-    } catch (_) {
-      // ignore
+      
+      _listenerInitialized = true;
+      print('✅ Guardian message listener started');
+    } catch (e) {
+      print('Error starting message listener: $e');
+      // If error is due to authentication, ignore
+      if (e.toString().contains('not authenticated')) {
+        _messageStreamSubscription?.cancel();
+        _messageStreamSubscription = null;
+        _listenerInitialized = false;
+      }
+    }
+  }
+
+  /// Handle new guardian messages - works in foreground and background
+  void _handleNewGuardianMessages(QuerySnapshot snapshot) {
+    for (final doc in snapshot.docs) {
+      final data = doc.data() as Map<String, dynamic>;
+      if (data['direction'] == 'guardian_to_user') {
+        final ts = data['created_at'];
+        final createdAt = ts is Timestamp ? ts.toDate() : DateTime.now();
+        
+        // Only process new messages
+        if (_lastMessageSeenAt == null || createdAt.isAfter(_lastMessageSeenAt!)) {
+          _lastMessageSeenAt = createdAt;
+          final content = (data['content'] as String?) ?? 'New message';
+          
+          // Show notification (works in background)
+          NotificationService.showSimple(
+            id: 2001,
+            title: 'Guardian message',
+            body: content.length > 100
+                ? '${content.substring(0, 100)}…'
+                : content,
+          );
+          
+          // Auto TTS: Automatically play the message via TTS
+          // This will work even when app is in background
+          _speakGuardianMessage(content);
+        }
+      }
+    }
+  }
+
+  /// Speak guardian message via TTS - works in background
+  void _speakGuardianMessage(String content) async {
+    try {
+      // Stop any current TTS first
+      await ttsService.stop();
+      
+      // Wait a moment for any ongoing audio to stop
+      await Future.delayed(const Duration(milliseconds: 300));
+      
+      // Speak the message - TTS works in background on Android
+      final message = 'Message from guardian: $content';
+      await ttsService.speak(message);
+      print('🔊 Auto TTS: Playing guardian message (background capable)');
+    } catch (e) {
+      print('Error in auto TTS: $e');
+      // Try again after a delay if it fails
+      Future.delayed(const Duration(seconds: 2), () async {
+        try {
+          await ttsService.speak('Message from guardian: $content');
+          print('🔊 Auto TTS: Retry successful');
+        } catch (retryError) {
+          print('Error in TTS retry: $retryError');
+        }
+      });
     }
   }
 
@@ -317,6 +544,18 @@ class MyApp extends StatelessWidget {
   static final ValueNotifier<ThemeMode> themeModeNotifier = ValueNotifier(
     ThemeMode.light,
   );
+
+  /// Determine initial route based on authentication state
+  /// This ensures users stay logged in after closing the app
+  /// Returns a widget that handles async auth check
+  Widget _getInitialRoute() {
+    return _AuthWrapper(
+      bluetoothService: bluetoothService,
+      openAIService: openAIService,
+      speechService: speechService,
+      ttsService: ttsService,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -327,8 +566,9 @@ class MyApp extends StatelessWidget {
           builder: (context, languageService, _) {
             final appLocale = languageService.locale;
 
-            // Start guardian message listener to show notifications
-            _startGuardianMessageListener();
+            // Start guardian message listener to show notifications and TTS
+            // This runs on every build to ensure it's active, but listener is only initialized once
+            startGuardianMessageListener();
 
             return MaterialApp(
               title: 'AEyes User App',
@@ -371,9 +611,18 @@ class MyApp extends StatelessWidget {
               theme: AppTheme.lightTheme,
               darkTheme: AppTheme.darkTheme,
               themeMode: themeMode,
-              initialRoute: '/',
+              home: _getInitialRoute(),
+              onGenerateRoute: (settings) {
+                // Handle '/' route explicitly (for navigation from other screens)
+                if (settings.name == '/') {
+                  return MaterialPageRoute(
+                    builder: (context) => _getInitialRoute(),
+                  );
+                }
+                return null; // Let Flutter handle other routes
+              },
               routes: {
-                '/': (context) => const RoleSelectionScreen(),
+                // Note: '/' route is handled by _AuthWrapper (home property) and onGenerateRoute
                 '/login': (context) => const LoginScreen(),
                 '/home': (context) => HomeScreen(
                   bluetoothService: bluetoothService,

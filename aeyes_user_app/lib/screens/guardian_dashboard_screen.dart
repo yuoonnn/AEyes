@@ -563,11 +563,20 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             tooltip: l10n?.logout ?? 'Logout',
-            onPressed: () => Navigator.pushNamedAndRemoveUntil(
-              context,
-              '/',
-              (route) => false,
-            ),
+            onPressed: () async {
+              // Actually log out the user
+              await _authService.logout();
+              // Stop guardian message listener
+              MyApp.stopGuardianMessageListener();
+              // Navigate to role selection
+              if (mounted) {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              }
+            },
           ),
           if (isDeletingAccount)
             const Padding(

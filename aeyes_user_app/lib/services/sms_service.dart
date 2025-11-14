@@ -7,43 +7,49 @@ import 'database_service.dart';
 class SMSService {
   final DatabaseService _databaseService = DatabaseService();
   
-  // Default predefined messages
-  static const List<String> _defaultMessages = [
-    'Please call me',
-    'I need help',
-    'I am lost',
-    'Emergency - please come',
-    'I am safe',
-  ];
+  // Default predefined message
+  static const String _defaultMessage = 'I need help - please call me';
   
-  /// Get predefined messages from storage
-  Future<List<String>> getPredefinedMessages() async {
+  /// Get single predefined message from storage
+  Future<String> getPredefinedMessage() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final messagesJson = prefs.getString('predefined_sms_messages');
+      final message = prefs.getString('predefined_sms_message');
       
-      if (messagesJson != null) {
-        final List<dynamic> messages = json.decode(messagesJson);
-        return messages.cast<String>();
+      if (message != null && message.isNotEmpty) {
+        return message;
       }
     } catch (e) {
-      print('Error loading predefined messages: $e');
+      print('Error loading predefined message: $e');
     }
     
-    // Return default messages if none saved
-    return List<String>.from(_defaultMessages);
+    // Return default message if none saved
+    return _defaultMessage;
   }
   
-  /// Save predefined messages to storage
-  Future<void> savePredefinedMessages(List<String> messages) async {
+  /// Save single predefined message to storage
+  Future<void> savePredefinedMessage(String message) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final messagesJson = json.encode(messages);
-      await prefs.setString('predefined_sms_messages', messagesJson);
-      print('✅ Predefined messages saved');
+      await prefs.setString('predefined_sms_message', message.trim());
+      print('✅ Predefined message saved');
     } catch (e) {
-      print('Error saving predefined messages: $e');
+      print('Error saving predefined message: $e');
       rethrow;
+    }
+  }
+  
+  // Keep old methods for backward compatibility (deprecated)
+  @Deprecated('Use getPredefinedMessage() instead')
+  Future<List<String>> getPredefinedMessages() async {
+    final message = await getPredefinedMessage();
+    return [message];
+  }
+  
+  @Deprecated('Use savePredefinedMessage() instead')
+  Future<void> savePredefinedMessages(List<String> messages) async {
+    if (messages.isNotEmpty) {
+      await savePredefinedMessage(messages.first);
     }
   }
   
@@ -88,59 +94,95 @@ class SMSService {
   
   /// Send SMS to all guardians with a predefined message
   /// Also saves the alert to Firestore so guardians can see it in their inbox
-  Future<Map<String, bool>> sendSMSToAllGuardians(String message) async {
-    final results = <String, bool>{};
+  /// Returns a map with guardian names and their status: 'sms_success', 'sms_failed', 'app_only', 'both'
+  Future<Map<String, String>> sendSMSToAllGuardians(String message) async {
+    final results = <String, String>{};
     
     try {
-      final guardians = await getGuardiansWithPhones();
+      // Get ALL guardians (not just those with phone numbers)
+      final allGuardians = await _databaseService.getGuardians();
       
-      if (guardians.isEmpty) {
-        print('No guardians with phone numbers found');
+      if (allGuardians.isEmpty) {
+        print('No guardians linked to this user');
         return results;
       }
       
-      // Send SMS to each guardian and save to Firestore
-      for (final guardian in guardians) {
+      // Get current user ID for the message
+      final currentUserId = _databaseService.currentUserId;
+      if (currentUserId == null) {
+        print('⚠️ Cannot send messages - user not authenticated');
+        return results;
+      }
+      
+      int appMessageCount = 0;
+      int smsSuccessCount = 0;
+      int smsFailedCount = 0;
+      
+      // Process each guardian
+      for (final guardian in allGuardians) {
         final phone = guardian['phone'] as String?;
         final name = guardian['guardian_name'] as String? ?? 'Guardian';
         final guardianId = guardian['guardian_id'] as String?;
         
+        bool smsSent = false;
+        bool appMessageSent = false;
+        
+        // Send SMS if phone number exists
         if (phone != null && phone.isNotEmpty) {
-          final success = await sendSMS(
-            phoneNumber: phone,
-            message: message,
-          );
-          results[name] = success;
-          
-          // Save SMS alert to Firestore so guardian can see it in inbox
-          if (success && guardianId != null) {
-            try {
-              // Get current user ID for the message
-              final currentUserId = _databaseService.currentUserId;
-              if (currentUserId != null) {
-                await _databaseService.sendMessage(
-                  guardianId: guardianId,
-                  messageType: 'alert', // Mark as alert type
-                  content: 'SMS Alert: $message',
-                  direction: 'user_to_guardian',
-                );
-                print('✅ SMS alert saved to Firestore for $name');
-              } else {
-                print('⚠️ Cannot save SMS alert - user not authenticated');
-              }
-            } catch (e) {
-              print('⚠️ Failed to save SMS alert to Firestore: $e');
-              // Continue even if Firestore save fails
+          try {
+            final success = await sendSMS(
+              phoneNumber: phone,
+              message: message,
+            );
+            smsSent = success;
+            if (success) {
+              smsSuccessCount++;
+              results[name] = 'sms_success';
+            } else {
+              smsFailedCount++;
+              results[name] = 'sms_failed';
             }
+          } catch (e) {
+            print('Error sending SMS to $name: $e');
+            smsFailedCount++;
+            results[name] = 'sms_failed';
           }
-          
-          if (success) {
-            print('✅ SMS sent to $name ($phone)');
-          } else {
-            print('❌ Failed to send SMS to $name ($phone)');
+        }
+        
+        // Always save to Firestore (guardian app) regardless of SMS status
+        if (guardianId != null) {
+          try {
+            await _databaseService.sendMessage(
+              guardianId: guardianId,
+              messageType: 'alert', // Mark as alert type
+              content: 'Emergency Alert: $message',
+              direction: 'user_to_guardian',
+            );
+            appMessageSent = true;
+            appMessageCount++;
+            print('✅ Alert saved to guardian app for $name');
+            
+            // Update result status
+            if (smsSent) {
+              results[name] = 'both'; // Both SMS and app message sent
+            } else if (phone != null && phone.isNotEmpty) {
+              results[name] = 'app_only'; // App message sent, SMS failed
+            } else {
+              results[name] = 'app_only'; // App message sent, no phone number
+            }
+          } catch (e) {
+            print('⚠️ Failed to save alert to Firestore for $name: $e');
+            // If SMS was sent but app message failed, keep SMS status
+            if (!smsSent && results[name] == null) {
+              results[name] = 'failed';
+            }
           }
         }
       }
+      
+      // Store summary in results for easy access
+      results['_summary'] = 'sms:$smsSuccessCount|failed:$smsFailedCount|app:$appMessageCount';
+      
     } catch (e) {
       print('Error sending SMS to all guardians: $e');
     }

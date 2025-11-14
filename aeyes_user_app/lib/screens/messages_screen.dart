@@ -14,6 +14,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   final DatabaseService _databaseService = DatabaseService();
   final TTSService _ttsService = TTSService();
   bool _isReading = false;
+  int _refreshKey = 0; // Key to force stream refresh
 
   String _formatTimestamp(dynamic timestamp) {
     if (timestamp == null) return 'Unknown';
@@ -67,6 +68,53 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    // Show confirmation dialog
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Message'),
+        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _databaseService.deleteMessage(messageId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Message deleted'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting message: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting message: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -94,12 +142,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
           actions: [
             IconButton(
               icon: const Icon(Icons.refresh),
-              onPressed: () => setState(() {}),
+              onPressed: () {
+                setState(() {
+                  _refreshKey++; // Force stream refresh by changing key
+                });
+              },
               tooltip: 'Refresh',
             ),
           ],
         ),
       body: StreamBuilder<QuerySnapshot>(
+        key: ValueKey(_refreshKey), // Force rebuild when refresh key changes
         stream: _databaseService.getMessagesStream(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
@@ -236,6 +289,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             ? null
                             : () => _readMessage(content),
                         tooltip: 'Read aloud',
+                      ),
+                      const SizedBox(width: 4),
+                      IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          color: Colors.red,
+                        ),
+                        onPressed: () => _deleteMessage(messageId),
+                        tooltip: 'Delete message',
                       ),
                     ],
                   ),

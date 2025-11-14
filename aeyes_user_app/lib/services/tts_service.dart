@@ -23,14 +23,24 @@ class TTSService {
       await _flutterTts.setVolume(1.0);     // double, not int
       await _flutterTts.setPitch(1.0);      // double, not int
       
+      // Note: TTS works in background on Android by default
+      // No special configuration needed for background TTS
+      
       // Set completion handler
       _flutterTts.setCompletionHandler(() {
         _isSpeaking = false;
+        print('TTS completed');
       });
       
       _flutterTts.setErrorHandler((msg) {
         _isSpeaking = false;
         print('TTS Error: $msg');
+      });
+      
+      // Set start handler
+      _flutterTts.setStartHandler(() {
+        _isSpeaking = true;
+        print('TTS started');
       });
     } catch (e) {
       print('Error initializing TTS: $e');
@@ -38,8 +48,15 @@ class TTSService {
   }
 
   /// Speak text - optionally send to bone conduction if Bluetooth is connected
+  /// Works in foreground and background
   Future<void> speak(String text, {bool useBoneConduction = false}) async {
-    if (_isSpeaking || text.isEmpty) return;
+    if (text.isEmpty) return;
+    
+    // If already speaking, stop current speech first
+    if (_isSpeaking) {
+      await stop();
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
     
     try {
       _isSpeaking = true;
@@ -51,13 +68,14 @@ class TTSService {
         await _bluetoothService!.sendTextForTTS(text);
         print('Sent TTS to bone conduction: $text');
       } else {
-        // Otherwise use phone speaker
+        // Use phone speaker - works in background on Android
         await _flutterTts.speak(text);
+        print('TTS speaking (background capable): ${text.substring(0, text.length > 50 ? 50 : text.length)}...');
       }
     } catch (e) {
       _isSpeaking = false;
       print('Error in TTS speak: $e');
-      rethrow;
+      // Don't rethrow - allow app to continue even if TTS fails
     }
   }
 

@@ -16,6 +16,8 @@ import '../services/tts_service.dart';
 import '../services/sms_service.dart';
 import '../services/gps_callout_service.dart';
 import '../services/location_search_service.dart';
+import '../services/auth_service.dart';
+import '../main.dart';
 import 'predefined_messages_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -43,6 +45,7 @@ class _HomeScreenState extends State<HomeScreen>
   final DatabaseService _databaseService = DatabaseService();
   final BatteryService _batteryService = BatteryService();
   final SMSService _smsService = SMSService();
+  final AuthService _authService = AuthService();
   GPSCalloutService? _gpsCalloutService;
   LocationSearchService? _locationSearchService;
   Timer? _locationUpdateTimer;
@@ -52,6 +55,8 @@ class _HomeScreenState extends State<HomeScreen>
   int? _esp32BatteryLevel;
   static bool _locationTrackingStarted = false; // Track if location tracking has been started globally
   static Position? _globalCurrentPosition; // Shared position across all screen instances
+  static Timer? _globalLocationUpdateTimer; // Global timer that persists across navigation
+  static GPSCalloutService? _globalGpsCalloutService; // Global GPS callout service
 
   @override
   void initState() {
@@ -68,11 +73,25 @@ class _HomeScreenState extends State<HomeScreen>
     widget.bluetoothService.onButtonPressed = (String buttonData) {
       if (!mounted) return;
       
-      // Handle button press - buttonData could be "0", "1", "2" or action strings like "capture", "help"
+      // Handle button press - buttonData could be "0", "1", "2" or format "1:POWER_SHORT", "2:CAPTURE", etc.
       print('Button pressed: $buttonData');
       
-      // Example: Handle different button actions
-      switch (buttonData.trim()) {
+      // Parse button data - format can be "buttonId" or "buttonId:event"
+      final trimmed = buttonData.trim();
+      String buttonId;
+      String? event;
+      
+      if (trimmed.contains(':')) {
+        final parts = trimmed.split(':');
+        buttonId = parts[0].trim();
+        event = parts.length > 1 ? parts[1].trim() : null;
+      } else {
+        buttonId = trimmed;
+        event = null;
+      }
+      
+      // Handle different button actions based on button ID
+      switch (buttonId) {
         case '0':
         case 'capture':
           // Trigger image capture/analysis
@@ -82,8 +101,14 @@ class _HomeScreenState extends State<HomeScreen>
           break;
         case '1':
         case 'help':
-          // Trigger SMS alert to guardians
-          _showSMSAlertDialog();
+          // Button 1: Automatically send predefined SMS to guardians
+          // Only trigger on short press, not on long press (power on/off)
+          if (event == null || event == 'POWER_SHORT') {
+            _sendPredefinedSMS();
+          } else if (event == 'POWER_LONG') {
+            // Long press is for power on/off, don't trigger SMS
+            print('Button 1 long press (power) - ignoring');
+          }
           break;
         case '2':
         case 'settings':
@@ -162,10 +187,19 @@ class _HomeScreenState extends State<HomeScreen>
     
     // Initialize GPS callout service with periodic location updates (every 3 minutes)
     // Only start location tracking once globally, not every time screen is created
+    // AND only if user is authenticated
     if (!_locationTrackingStarted) {
+      // Check if user is authenticated before starting location tracking
+      final db = DatabaseService();
+      if (db.currentUserId == null) {
+        print('⚠️ User not authenticated - Location tracking not started');
+        return;
+      }
+      
       const mapboxApiKey = 'pk.eyJ1IjoiY2hyaXNzZWdncyIsImEiOiJjbWh4aW4wbGkwMXA4MnFzaHVjaGc3NDgwIn0.I51_0mt0LivtIciiYF9jSw'; // Add your Mapbox API key here
       if (widget.ttsService != null && mapboxApiKey != 'YOUR_MAPBOX_API_KEY' && mapboxApiKey.isNotEmpty) {
-        _gpsCalloutService = GPSCalloutService(widget.ttsService!, mapboxApiKey: mapboxApiKey);
+        _globalGpsCalloutService = GPSCalloutService(widget.ttsService!, mapboxApiKey: mapboxApiKey);
+        _gpsCalloutService = _globalGpsCalloutService; // Store reference in instance too
         _locationSearchService = LocationSearchService(
           mapboxApiKey: mapboxApiKey,
           ttsService: widget.ttsService!,
@@ -178,7 +212,8 @@ class _HomeScreenState extends State<HomeScreen>
         print('⚠️ Mapbox API key not set. GPS callouts disabled.');
       }
     } else {
-      // If tracking already started, use the global position (no GPS call)
+      // If tracking already started, use the global services and position
+      _gpsCalloutService = _globalGpsCalloutService;
       if (_globalCurrentPosition != null) {
         setState(() {
           _currentPosition = _globalCurrentPosition;
@@ -322,10 +357,10 @@ class _HomeScreenState extends State<HomeScreen>
     await _gpsCalloutService!.start();
     
     // Also save location to Firestore every 3 minutes (same interval)
-    _locationUpdateTimer?.cancel();
-    _locationUpdateTimer = Timer.periodic(const Duration(minutes: 3), (timer) async {
-      // Check if widget is still mounted (screen might be disposed)
-      // Since this is a global timer, we need to check differently
+    // Use static timer so it persists across navigation
+    _globalLocationUpdateTimer?.cancel();
+    _globalLocationUpdateTimer = Timer.periodic(const Duration(minutes: 3), (timer) async {
+      // This is a global timer, so it runs even when HomeScreen is not mounted
       try {
         final position = await Geolocator.getCurrentPosition(
           desiredAccuracy: LocationAccuracy.high,
@@ -334,14 +369,9 @@ class _HomeScreenState extends State<HomeScreen>
         // Update global position (shared across all screen instances)
         _globalCurrentPosition = position;
         
-        // Update current position (if screen is still mounted)
-        if (mounted) {
-          setState(() {
-            _currentPosition = position;
-          });
-        }
-        
-        await _databaseService.saveLocation(
+        // Save to Firestore
+        final db = DatabaseService();
+        await db.saveLocation(
           latitude: position.latitude,
           longitude: position.longitude,
           accuracy: position.accuracy,
@@ -351,87 +381,84 @@ class _HomeScreenState extends State<HomeScreen>
         print('Error saving location: $e');
       }
     });
+    // Also store reference in instance for backward compatibility
+    _locationUpdateTimer = _globalLocationUpdateTimer;
   }
   
-  Future<void> _showSMSAlertDialog() async {
+  /// Automatically send predefined SMS message to all guardians (no dialog)
+  Future<void> _sendPredefinedSMS() async {
     try {
-      // Get predefined messages
-      final messages = await _smsService.getPredefinedMessages();
+      // Get single predefined message
+      final message = await _smsService.getPredefinedMessage();
       
-      if (messages.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No predefined messages found. Please add messages in Settings.'),
-            backgroundColor: AppTheme.warning,
-          ),
-        );
+      if (message.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No predefined message found. Please set a message in Settings.'),
+              backgroundColor: AppTheme.warning,
+            ),
+          );
+        }
         return;
       }
       
-      // Show dialog to select message
-      final selectedMessage = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: const Text('Send SMS Alert'),
-          content: SizedBox(
-            width: double.maxFinite,
-            child: ListView.builder(
-              shrinkWrap: true,
-              itemCount: messages.length,
-              itemBuilder: (context, index) {
-                return ListTile(
-                  title: Text(messages[index]),
-                  onTap: () => Navigator.pop(context, messages[index]),
-                );
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () async {
-                // Navigate to edit messages screen
-                Navigator.pop(context);
-                final result = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const PredefinedMessagesScreen(),
-                  ),
-                );
-                if (result == true && mounted) {
-                  _showSMSAlertDialog(); // Refresh dialog
-                }
-              },
-              child: const Text('Edit Messages'),
-            ),
-          ],
-        ),
-      );
+      // Send SMS to all guardians automatically
+      final results = await _smsService.sendSMSToAllGuardians(message);
       
-      if (selectedMessage != null && mounted) {
-        // Send SMS to all guardians
-        final results = await _smsService.sendSMSToAllGuardians(selectedMessage);
+      if (mounted) {
+        // Remove summary from results for counting
+        final summary = results.remove('_summary');
+        final totalCount = results.length;
         
-        if (mounted) {
-          final successCount = results.values.where((v) => v).length;
-          final totalCount = results.length;
+        if (totalCount == 0) {
+          // No guardians at all
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('No guardians found. Please add guardians in Settings.'),
+              backgroundColor: AppTheme.warning,
+              duration: Duration(seconds: 4),
+            ),
+          );
+          if (widget.ttsService != null) {
+            await widget.ttsService!.speak('No guardians found');
+          }
+        } else {
+          // Count different statuses
+          final smsSuccessCount = results.values.where((v) => v == 'sms_success' || v == 'both').length;
+          final appOnlyCount = results.values.where((v) => v == 'app_only').length;
+          final bothCount = results.values.where((v) => v == 'both').length;
+          final appMessageCount = appOnlyCount + bothCount; // Total app messages sent
+          
+          // Build success message
+          String successMessage;
+          if (smsSuccessCount > 0 && appMessageCount > 0) {
+            // Both SMS and app messages sent
+            successMessage = 'Alert sent successfully! SMS to $smsSuccessCount guardian${smsSuccessCount > 1 ? 's' : ''} and message to $appMessageCount guardian app${appMessageCount > 1 ? 's' : ''}';
+          } else if (appMessageCount > 0) {
+            // Only app messages (no phone numbers or SMS failed)
+            successMessage = 'Alert sent successfully to $appMessageCount guardian app${appMessageCount > 1 ? 's' : ''}';
+          } else {
+            // SMS sent but app message failed (shouldn't happen, but handle it)
+            successMessage = 'SMS sent to $smsSuccessCount guardian${smsSuccessCount > 1 ? 's' : ''}';
+          }
+          
+          // Use TTS to announce success
+          if (widget.ttsService != null) {
+            await widget.ttsService!.speak(successMessage);
+          }
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                totalCount > 0
-                    ? 'SMS sent to $successCount of $totalCount guardians'
-                    : 'No guardians with phone numbers found',
-              ),
-              backgroundColor: successCount > 0 ? AppTheme.success : AppTheme.warning,
+              content: Text(successMessage),
+              backgroundColor: AppTheme.success,
+              duration: const Duration(seconds: 4),
             ),
           );
         }
       }
     } catch (e) {
+      print('Error sending predefined SMS: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -515,8 +542,11 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _batteryService.dispose();
-    _locationUpdateTimer?.cancel();
-    _gpsCalloutService?.dispose();
+    // Don't cancel location update timer on dispose - it should persist across navigation
+    // Only cancel if user logs out (handled elsewhere)
+    // _locationUpdateTimer?.cancel();
+    // Don't dispose GPS callout service on dispose - it should persist across navigation
+    // _gpsCalloutService?.dispose();
     super.dispose();
   }
 
@@ -572,8 +602,10 @@ class _HomeScreenState extends State<HomeScreen>
         accuracy: position.accuracy,
       );
       
-      // Trigger GPS callout if service is available
-      if (_gpsCalloutService != null) {
+      // Trigger GPS callout if service is available (use global reference)
+      if (_globalGpsCalloutService != null) {
+        await _globalGpsCalloutService!.announceLocation(position);
+      } else if (_gpsCalloutService != null) {
         await _gpsCalloutService!.announceLocation(position);
       }
       
@@ -602,8 +634,8 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildLocationTrackingStatus() {
-    // Check if location tracking is actually active
-    final isActive = _locationTrackingStarted && _gpsCalloutService != null;
+    // Check if location tracking is actually active using static references
+    final isActive = _locationTrackingStarted && _globalGpsCalloutService != null;
     
     return Card(
       elevation: AppTheme.elevationHigh,
@@ -746,11 +778,27 @@ class _HomeScreenState extends State<HomeScreen>
             IconButton(
               icon: const Icon(Icons.logout),
               tooltip: 'Logout',
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                (route) => false,
-              ),
+              onPressed: () async {
+                // Actually log out the user
+                await _authService.logout();
+                // Stop location tracking and clear static state
+                _HomeScreenState._locationTrackingStarted = false;
+                _HomeScreenState._globalLocationUpdateTimer?.cancel();
+                _HomeScreenState._globalLocationUpdateTimer = null;
+                _HomeScreenState._globalGpsCalloutService?.stop();
+                _HomeScreenState._globalGpsCalloutService = null;
+                _HomeScreenState._globalCurrentPosition = null;
+                // Stop guardian message listener
+                MyApp.stopGuardianMessageListener();
+                // Navigate to role selection
+                if (mounted) {
+                  Navigator.pushNamedAndRemoveUntil(
+                    context,
+                    '/',
+                    (route) => false,
+                  );
+                }
+              },
             ),
           ],
         ),

@@ -12,55 +12,55 @@ class PredefinedMessagesScreen extends StatefulWidget {
 
 class _PredefinedMessagesScreenState extends State<PredefinedMessagesScreen> {
   final SMSService _smsService = SMSService();
-  List<String> _messages = [];
+  final TextEditingController _messageController = TextEditingController();
   bool _isLoading = true;
-  final Map<int, TextEditingController> _controllers = {};
 
   @override
   void initState() {
     super.initState();
-    _loadMessages();
+    _loadMessage();
   }
 
-  Future<void> _loadMessages() async {
+  Future<void> _loadMessage() async {
     setState(() => _isLoading = true);
     try {
-      final messages = await _smsService.getPredefinedMessages();
+      final message = await _smsService.getPredefinedMessage();
       setState(() {
-        _messages = messages;
-        // Initialize controllers for each message
-        for (int i = 0; i < _messages.length; i++) {
-          _controllers[i] = TextEditingController(text: _messages[i]);
-        }
+        _messageController.text = message;
         _isLoading = false;
       });
     } catch (e) {
       setState(() => _isLoading = false);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading messages: $e')),
+          SnackBar(content: Text('Error loading message: $e')),
         );
       }
     }
   }
 
-  Future<void> _saveMessages() async {
+  Future<void> _saveMessage() async {
     try {
-      // Update messages from controllers
-      final updatedMessages = <String>[];
-      for (int i = 0; i < _controllers.length; i++) {
-        final text = _controllers[i]?.text.trim() ?? '';
-        if (text.isNotEmpty) {
-          updatedMessages.add(text);
+      final message = _messageController.text.trim();
+      
+      if (message.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Message cannot be empty'),
+              backgroundColor: AppTheme.error,
+            ),
+          );
         }
+        return;
       }
       
-      await _smsService.savePredefinedMessages(updatedMessages);
+      await _smsService.savePredefinedMessage(message);
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Messages saved successfully'),
+            content: Text('Message saved successfully'),
             backgroundColor: AppTheme.success,
           ),
         );
@@ -70,7 +70,7 @@ class _PredefinedMessagesScreenState extends State<PredefinedMessagesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error saving messages: $e'),
+            content: Text('Error saving message: $e'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -78,47 +78,9 @@ class _PredefinedMessagesScreenState extends State<PredefinedMessagesScreen> {
     }
   }
 
-  void _addNewMessage() {
-    setState(() {
-      final newIndex = _messages.length;
-      _messages.add('');
-      _controllers[newIndex] = TextEditingController();
-    });
-  }
-
-  void _removeMessage(int index) {
-    setState(() {
-      _controllers[index]?.dispose();
-      _controllers.remove(index);
-      _messages.removeAt(index);
-      
-      // Rebuild controllers map with new indices
-      final newControllers = <int, TextEditingController>{};
-      final newMessages = <String>[];
-      int newIndex = 0;
-      
-      for (int i = 0; i < _messages.length; i++) {
-        if (i != index) {
-          final controller = _controllers[i];
-          if (controller != null) {
-            newControllers[newIndex] = controller;
-            newMessages.add(_messages[i]);
-            newIndex++;
-          }
-        }
-      }
-      
-      _controllers.clear();
-      _controllers.addAll(newControllers);
-      _messages = newMessages;
-    });
-  }
-
   @override
   void dispose() {
-    for (final controller in _controllers.values) {
-      controller.dispose();
-    }
+    _messageController.dispose();
     super.dispose();
   }
 
@@ -126,99 +88,85 @@ class _PredefinedMessagesScreenState extends State<PredefinedMessagesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Predefined SMS Messages'),
+        title: const Text('Emergency SMS Message'),
         actions: [
           IconButton(
             icon: const Icon(Icons.save),
-            onPressed: _saveMessages,
-            tooltip: 'Save Messages',
+            onPressed: _saveMessage,
+            tooltip: 'Save Message',
           ),
         ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Column(
-              children: [
-                // Instructions
-                Container(
-                  padding: AppTheme.paddingMD,
-                  color: AppTheme.primaryWithOpacity(0.1),
-                  child: Row(
-                    children: [
-                      Icon(Icons.info_outline, color: AppTheme.primaryGreen),
-                      SizedBox(width: AppTheme.spacingMD),
-                      Expanded(
-                        child: Text(
-                          'Edit your predefined messages for SMS alerts. These will be available when Button 1 is pressed.',
-                          style: AppTheme.textStyleBody,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                // Messages list
-                Expanded(
-                  child: ListView.builder(
+          : SingleChildScrollView(
+              padding: AppTheme.paddingLG,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Instructions
+                  Container(
                     padding: AppTheme.paddingMD,
-                    itemCount: _messages.length,
-                    itemBuilder: (context, index) {
-                      return Card(
-                        margin: EdgeInsets.only(bottom: AppTheme.spacingMD),
-                        elevation: AppTheme.elevationMedium,
-                        child: Padding(
-                          padding: AppTheme.paddingMD,
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _controllers[index],
-                                  decoration: InputDecoration(
-                                    labelText: 'Message ${index + 1}',
-                                    hintText: 'Enter message text',
-                                    border: OutlineInputBorder(
-                                      borderRadius: AppTheme.borderRadiusMD,
-                                    ),
-                                  ),
-                                  maxLines: 2,
-                                  inputFormatters: [
-                                    LengthLimitingTextInputFormatter(160), // SMS character limit
-                                  ],
-                                ),
-                              ),
-                              SizedBox(width: AppTheme.spacingSM),
-                              IconButton(
-                                icon: const Icon(Icons.delete_outline, color: AppTheme.error),
-                                onPressed: _messages.length > 1
-                                    ? () => _removeMessage(index)
-                                    : null,
-                                tooltip: 'Remove Message',
-                              ),
-                            ],
+                    decoration: BoxDecoration(
+                      color: AppTheme.primaryWithOpacity(0.1),
+                      borderRadius: AppTheme.borderRadiusMD,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: AppTheme.primaryGreen),
+                        SizedBox(width: AppTheme.spacingMD),
+                        Expanded(
+                          child: Text(
+                            'This message will be automatically sent to all your guardians when you press Button 1. Make it clear and concise.',
+                            style: AppTheme.textStyleBody,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                ),
-                
-                // Add button
-                Padding(
-                  padding: AppTheme.paddingMD,
-                  child: ElevatedButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Add New Message'),
-                    onPressed: _addNewMessage,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryGreen,
-                      foregroundColor: Colors.white,
-                      padding: AppTheme.paddingMD,
+                      ],
                     ),
                   ),
-                ),
-              ],
+                  SizedBox(height: AppTheme.spacingXL),
+                  
+                  // Message input
+                  Text(
+                    'Emergency Message',
+                    style: AppTheme.textStyleTitle.copyWith(
+                      fontWeight: AppTheme.fontWeightBold,
+                    ),
+                  ),
+                  SizedBox(height: AppTheme.spacingSM),
+                  TextField(
+                    controller: _messageController,
+                    decoration: InputDecoration(
+                      hintText: 'e.g., "I need help - please call me"',
+                      border: OutlineInputBorder(
+                        borderRadius: AppTheme.borderRadiusMD,
+                      ),
+                      helperText: 'This message will be sent via SMS and appear in guardian app',
+                    ),
+                    maxLines: 4,
+                    maxLength: 160, // SMS character limit
+                    inputFormatters: [
+                      LengthLimitingTextInputFormatter(160),
+                    ],
+                  ),
+                  SizedBox(height: AppTheme.spacingXL),
+                  
+                  // Save button
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _saveMessage,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: AppTheme.paddingMD,
+                      ),
+                      child: const Text('Save Message'),
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
 }
-
