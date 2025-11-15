@@ -50,7 +50,7 @@ class OpenAIService {
             {
               "type": "text",
               "text": prompt ??
-                  "You are acting as an assistive device for a blind individual. I need you to narrate what's in front of me. Be concise and clear."
+                  "You are acting as an assistive device for a blind individual. I need you to narrate what's in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed."
             },
             {
               "type": "image_url",
