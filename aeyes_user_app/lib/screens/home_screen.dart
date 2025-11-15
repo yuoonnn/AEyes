@@ -68,59 +68,7 @@ class _HomeScreenState extends State<HomeScreen>
     });
 
     // Image handling is global; don't override callbacks here.
-
-    // Hook into button press events from ESP32
-    widget.bluetoothService.onButtonPressed = (String buttonData) {
-      if (!mounted) return;
-      
-      // Handle button press - buttonData could be "0", "1", "2" or format "1:POWER_SHORT", "2:CAPTURE", etc.
-      print('Button pressed: $buttonData');
-      
-      // Parse button data - format can be "buttonId" or "buttonId:event"
-      final trimmed = buttonData.trim();
-      String buttonId;
-      String? event;
-      
-      if (trimmed.contains(':')) {
-        final parts = trimmed.split(':');
-        buttonId = parts[0].trim();
-        event = parts.length > 1 ? parts[1].trim() : null;
-      } else {
-        buttonId = trimmed;
-        event = null;
-      }
-      
-      // Handle different button actions based on button ID
-      switch (buttonId) {
-        case '0':
-        case 'capture':
-          // Trigger image capture/analysis
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Capture button pressed')),
-          );
-          break;
-        case '1':
-        case 'help':
-          // Button 1: Automatically send predefined SMS to guardians
-          // Only trigger on short press, not on long press (power on/off)
-          if (event == null || event == 'POWER_SHORT') {
-            _sendPredefinedSMS();
-          } else if (event == 'POWER_LONG') {
-            // Long press is for power on/off, don't trigger SMS
-            print('Button 1 long press (power) - ignoring');
-          }
-          break;
-        case '2':
-        case 'settings':
-          // Navigate to settings
-          Navigator.pushNamed(context, '/settings');
-          break;
-        default:
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Button $buttonData pressed')),
-          );
-      }
-    };
+    // Button press handling is now global in main.dart - TTS announcements work across all screens
 
     // Voice commands from ESP32 are now handled globally in main.dart
     // They are automatically paired with the next image capture

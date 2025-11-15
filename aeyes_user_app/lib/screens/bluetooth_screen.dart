@@ -15,11 +15,13 @@ import '../services/ai_state.dart';
 class BluetoothScreen extends StatefulWidget {
   final AppBluetoothService bluetoothService; // Changed to AppBluetoothService
   final OpenAIService openAIService;
+  final TTSService? ttsService;
 
   const BluetoothScreen({
     Key? key,
     required this.bluetoothService,
     required this.openAIService,
+    this.ttsService,
   }) : super(key: key);
 
   @override
@@ -29,7 +31,7 @@ class BluetoothScreen extends StatefulWidget {
 class _BluetoothScreenState extends State<BluetoothScreen> {
   late final AppBluetoothService
   _bluetoothService; // Changed to AppBluetoothService
-  final TTSService _ttsService = TTSService();
+  late final TTSService _ttsService;
   StreamSubscription<BluetoothConnectionState>? _connSub;
 
   List<BluetoothDevice> devices = [];
@@ -55,6 +57,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     super.initState();
 
     _bluetoothService = widget.bluetoothService;
+    _ttsService = widget.ttsService ?? TTSService(); // Use provided TTS or create new if not provided
 
     // Seed UI with current connection state if already connected
     final existing = _bluetoothService.connectedDevice;

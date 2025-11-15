@@ -125,6 +125,12 @@ class MediaControlService {
       case 'MEDIA_PLAYPAUSE':
         await playPause();
         break;
+      case 'MEDIA_LONG':
+        // Long press on media button (5s) - could be used for additional media control
+        // For now, just toggle play/pause as a fallback action
+        developer.log('🎮 Media button long press - toggling play/pause');
+        await playPause();
+        break;
       case 'VOLUME_UP':
         await volumeUp();
         break;

@@ -120,12 +120,26 @@ class ButtonSoundService {
       'SKIP_TRACK',
       'PREVIOUS_TRACK',
     ];
+    
+    // Also allow specific events that don't match suffix pattern
+    const allowedEvents = <String>[
+      'AUTO_ON',
+      'AUTO_OFF',
+      'AUTO_CAPTURE',
+    ];
 
+    // Check suffix matches
     for (final suffix in allowedEventSuffixes) {
       if (event.endsWith(suffix)) {
         return true;
       }
     }
+    
+    // Check exact event matches
+    if (allowedEvents.contains(event)) {
+      return true;
+    }
+    
     return false;
   }
 

@@ -30,6 +30,7 @@ import 'services/tts_service.dart';
 import 'services/speech_service.dart';
 import 'services/database_service.dart';
 import 'services/media_control_service.dart';
+import 'services/sms_service.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'dart:async';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -66,7 +67,7 @@ void main() async {
   final bluetoothService =
       AppBluetoothService(); // Changed to AppBluetoothService
   // Read OpenAI API key from a secure runtime define (never commit keys)
-  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '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');
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();
@@ -120,6 +121,13 @@ void main() async {
 
     if (command == 'START_RECORDING') {
       bluetoothService.log('🎤 Starting recording (ESP32 button pressed)');
+      // Provide TTS feedback for blind users
+      try {
+        await ttsService.stop(); // Stop any ongoing TTS first
+        await ttsService.speak('Recording');
+      } catch (e) {
+        bluetoothService.log('⚠️ TTS feedback failed: $e');
+      }
       await speechService.startRecording();
     } else if (command == 'STOP_RECORDING') {
       bluetoothService.log('🎤 Stopping recording (ESP32 button released)');
@@ -154,23 +162,137 @@ void main() async {
     }
   };
 
-  // Handle button press events from ESP32 - route media controls
-  bluetoothService.onButtonPressed = (String buttonData) {
-    bluetoothService.log('🎮 Button pressed: $buttonData');
-
-    // Check if this is a media control button (buttons 4, 5, or 6)
-    if (buttonData.contains(':')) {
-      final parts = buttonData.split(':');
-      if (parts.length >= 2) {
-        final buttonId = parts[0];
-
-        // Buttons 4, 5, 6 are media controls
-        if (buttonId == '4' || buttonId == '5' || buttonId == '6') {
-          MediaControlService.handleButtonEvent(buttonData);
-        } else {
-          bluetoothService.log('📱 Non-media button: $buttonData');
+  // Global function to send predefined SMS with TTS feedback
+  Future<void> _sendPredefinedSMSGlobal(TTSService? ttsService) async {
+    try {
+      final smsService = SMSService();
+      // Get single predefined message
+      final message = await smsService.getPredefinedMessage();
+      
+      if (message.isEmpty) {
+        if (ttsService != null) {
+          await ttsService.speak('No predefined message found. Please set a message in Settings.');
+        }
+        return;
+      }
+      
+      // Send SMS to all guardians automatically
+      final results = await smsService.sendSMSToAllGuardians(message);
+      
+      // Remove summary from results for counting
+      results.remove('_summary');
+      final totalCount = results.length;
+      
+      if (totalCount == 0) {
+        // No guardians at all
+        if (ttsService != null) {
+          await ttsService.speak('No guardians found');
+        }
+      } else {
+        // Use TTS to announce success - simplified message for user
+        if (ttsService != null) {
+          await ttsService.speak('Alert sent');
         }
       }
+    } catch (e) {
+      print('Error sending predefined SMS: $e');
+      if (ttsService != null) {
+        try {
+          await ttsService.speak('Error sending alert');
+        } catch (ttsError) {
+          print('TTS error: $ttsError');
+        }
+      }
+    }
+  }
+
+  // Global button press handler - works across all screens
+  // This ensures TTS announcements work regardless of which screen is active
+  bluetoothService.onButtonPressed = (String buttonData) async {
+    bluetoothService.log('🎮 Button pressed: $buttonData');
+
+    // Parse button data - format can be "buttonId" or "buttonId:event"
+    final trimmed = buttonData.trim();
+    String buttonId;
+    String? event;
+    
+    if (trimmed.contains(':')) {
+      final parts = trimmed.split(':');
+      buttonId = parts[0].trim();
+      event = parts.length > 1 ? parts[1].trim() : null;
+    } else {
+      buttonId = trimmed;
+      event = null;
+    }
+
+    // Handle media control buttons (4, 5, 6) - route to media control service
+    if (buttonId == '4' || buttonId == '5' || buttonId == '6') {
+      MediaControlService.handleButtonEvent(buttonData);
+      return;
+    }
+
+    // Handle other buttons with TTS announcements
+    switch (buttonId) {
+      case '0':
+      case 'capture':
+        // Trigger image capture/analysis
+        if (ttsService != null) {
+          try {
+            await ttsService.stop(); // Stop any ongoing TTS first
+            await ttsService.speak('Capturing image');
+          } catch (e) {
+            print('⚠️ TTS feedback failed: $e');
+          }
+        }
+        break;
+      
+      case '1':
+      case 'help':
+        // Button 1: Automatically send predefined SMS to guardians
+        // Only trigger on short press, not on long press (power on/off)
+        if (event == null || event == 'POWER_SHORT') {
+          await _sendPredefinedSMSGlobal(ttsService);
+        } else if (event == 'POWER_LONG') {
+          // Long press is for power on/off, don't trigger SMS
+          bluetoothService.log('Button 1 long press (power) - ignoring');
+        }
+        break;
+      
+      case '2':
+        // Button 2: Capture / Auto-scan toggle
+        if (event == 'CAPTURE') {
+          // Short press: Request image capture
+          if (ttsService != null) {
+            try {
+              await ttsService.stop(); // Stop any ongoing TTS first
+              await ttsService.speak('Capturing image');
+            } catch (e) {
+              print('⚠️ TTS feedback failed: $e');
+            }
+          }
+        } else if (event == 'AUTO_ON') {
+          // Long press: Auto-capture enabled
+          if (ttsService != null) {
+            try {
+              await ttsService.speak('Auto capture enabled');
+            } catch (e) {
+              print('⚠️ TTS feedback failed: $e');
+            }
+          }
+        } else if (event == 'AUTO_OFF') {
+          // Long press: Auto-capture disabled
+          if (ttsService != null) {
+            try {
+              await ttsService.speak('Auto capture disabled');
+            } catch (e) {
+              print('⚠️ TTS feedback failed: $e');
+            }
+          }
+        }
+        break;
+      
+      default:
+        bluetoothService.log('📱 Unhandled button: $buttonData');
     }
   };
 
@@ -407,14 +529,23 @@ class MyApp extends StatelessWidget {
   final OpenAIService openAIService;
   final SpeechService? speechService; // Optional due to plugin compatibility
   final TTSService ttsService;
-
-  const MyApp({
+  
+  static MyApp? _instance;
+  
+  MyApp({
     super.key,
     required this.bluetoothService,
     required this.openAIService,
     this.speechService, // Made optional
     required this.ttsService,
-  });
+  }) {
+    _instance = this;
+  }
+  
+  /// Get the current MyApp instance (for accessing services from widgets)
+  static MyApp? of(BuildContext context) {
+    return _instance;
+  }
 
   static DateTime? _lastMessageSeenAt;
   static StreamSubscription? _messageStreamSubscription;
@@ -630,12 +761,13 @@ class MyApp extends StatelessWidget {
                   speechService: speechService,
                   ttsService: ttsService,
                 ),
-                '/analysis': (context) => const AnalysisScreen(),
-                '/settings': (context) => const SettingsScreen(),
-                '/profile': (context) => const ProfileScreen(),
+                '/analysis': (context) => AnalysisScreen(ttsService: ttsService),
+                '/settings': (context) => SettingsScreen(ttsService: ttsService),
+                '/profile': (context) => ProfileScreen(ttsService: ttsService),
                 '/bluetooth': (context) => BluetoothScreen(
                   bluetoothService: bluetoothService,
                   openAIService: openAIService,
+                  ttsService: ttsService,
                 ),
                 '/register': (context) => const RegistrationScreen(),
                 '/guardian_login': (context) => const GuardianLoginScreen(),

@@ -5,10 +5,25 @@ class TTSService {
   final FlutterTts _flutterTts = FlutterTts();
   bool _isSpeaking = false;
   AppBluetoothService? _bluetoothService;
+  double _volume = 1.0; // Default to 100%
 
   TTSService() {
     _initTTS();
   }
+  
+  /// Set TTS volume (0.0 to 1.0)
+  Future<void> setVolume(double volume) async {
+    _volume = volume.clamp(0.0, 1.0);
+    try {
+      await _flutterTts.setVolume(_volume);
+      print('🔊 TTS volume set to ${(_volume * 100).toInt()}%');
+    } catch (e) {
+      print('⚠️ Failed to set TTS volume: $e');
+    }
+  }
+  
+  /// Get current TTS volume (0.0 to 1.0)
+  double get volume => _volume;
 
   /// Set Bluetooth service for bone conduction audio output
   void setBluetoothService(AppBluetoothService? bluetoothService) {
@@ -20,7 +35,7 @@ class TTSService {
       // Set proper parameters with correct types
       await _flutterTts.setLanguage("en-US");
       await _flutterTts.setSpeechRate(0.5); // double, not int
-      await _flutterTts.setVolume(1.0);     // double, not int
+      await _flutterTts.setVolume(_volume); // Use stored volume
       await _flutterTts.setPitch(1.0);      // double, not int
       
       // Note: TTS works in background on Android by default

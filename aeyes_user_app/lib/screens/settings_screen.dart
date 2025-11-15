@@ -8,11 +8,14 @@ import '../widgets/main_scaffold.dart';
 import '../services/button_sound_service.dart';
 import '../services/language_service.dart';
 import '../services/database_service.dart';
+import '../services/tts_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'predefined_messages_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  final TTSService? ttsService;
+  
+  const SettingsScreen({Key? key, this.ttsService}) : super(key: key);
 
   @override
   State<SettingsScreen> createState() => _SettingsScreenState();
@@ -56,6 +59,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
           isLoading = false;
         });
         ButtonSoundService().setVolume(loadedVolume);
+        // Apply TTS volume from settings
+        final ttsService = MyApp.of(context)?.ttsService;
+        if (ttsService != null) {
+          await ttsService.setVolume(volume);
+        }
       } else {
         setState(() => isLoading = false);
       }
@@ -92,6 +100,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       await _databaseService.saveSettings(settings);
       ButtonSoundService().setVolume(beepVolume);
+      // Apply TTS volume when saving settings
+      final ttsService = MyApp.of(context)?.ttsService;
+      if (ttsService != null) {
+        await ttsService.setVolume(volume);
+      }
 
       setState(() {
         successMessage = l10n?.settingsSaved ?? 'Settings saved';
@@ -188,10 +201,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       max: 1,
                       divisions: 10,
                       activeColor: greenAccent,
-                      onChanged: (val) {
+                      onChanged: (val) async {
                         setState(() {
                           volume = val;
                         });
+                        // Apply TTS volume immediately when slider changes
+                        final ttsService = MyApp.of(context)?.ttsService;
+                        if (ttsService != null) {
+                          await ttsService.setVolume(val);
+                        }
                       },
                     ),
                   ),

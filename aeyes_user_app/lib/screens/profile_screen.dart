@@ -5,10 +5,13 @@ import '../widgets/custom_textfield.dart';
 import '../widgets/main_scaffold.dart';
 import '../services/auth_service.dart';
 import '../services/database_service.dart';
+import '../services/tts_service.dart';
 import '../models/user.dart' as app_user;
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({Key? key}) : super(key: key);
+  final TTSService? ttsService;
+  
+  const ProfileScreen({Key? key, this.ttsService}) : super(key: key);
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();

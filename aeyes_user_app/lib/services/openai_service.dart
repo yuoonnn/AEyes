@@ -41,26 +41,26 @@ class OpenAIService {
     final url = Uri.parse("https://api.openai.com/v1/chat/completions");
 
     final body = {
-      "model": "gpt-4o", // or "gpt-4-vision-preview" for older models
+      "model": "gpt-4o",
+      "max_tokens": 300,
       "messages": [
         {
           "role": "user",
           "content": [
             {
               "type": "text",
-              "text":
-                  prompt ??
-                  "You are assisting a blind user. Describe what is in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed",
+              "text": prompt ??
+                  "You are acting as an assistive device for a blind individual. I need you to narrate what's in front of me. Be concise and clear."
             },
             {
               "type": "image_url",
-              "image_url": {"url": dataUri},
-            },
-          ],
-        },
-      ],
-      "max_tokens": 300, // Limit response length
+              "image_url": {"url": dataUri}
+            }
+          ]
+        }
+      ]
     };
+
 
     final response = await http.post(
       url,

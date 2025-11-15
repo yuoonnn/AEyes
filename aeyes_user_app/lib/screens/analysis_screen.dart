@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_state.dart';
+import '../services/tts_service.dart';
 import '../widgets/main_scaffold.dart';
 
 class AnalysisScreen extends StatelessWidget {
-  const AnalysisScreen({Key? key}) : super(key: key);
+  final TTSService? ttsService;
+  
+  const AnalysisScreen({Key? key, this.ttsService}) : super(key: key);
 
   @override
   Widget build(BuildContext context) {

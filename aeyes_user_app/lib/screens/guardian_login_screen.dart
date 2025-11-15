@@ -20,6 +20,32 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
   String? errorMessage;
   bool isPasswordVisible = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // Add listeners to update button state when fields change
+    emailController.addListener(_updateButtonState);
+    passwordController.addListener(_updateButtonState);
+  }
+
+  @override
+  void dispose() {
+    emailController.removeListener(_updateButtonState);
+    passwordController.removeListener(_updateButtonState);
+    emailController.dispose();
+    passwordController.dispose();
+    super.dispose();
+  }
+
+  void _updateButtonState() {
+    setState(() {}); // Trigger rebuild to update button state
+  }
+
+  bool get _isFormValid {
+    return emailController.text.trim().isNotEmpty &&
+        passwordController.text.trim().isNotEmpty;
+  }
+
   Future<void> _handleLogin() async {
     final email = emailController.text.trim();
     final password = passwordController.text.trim();
@@ -187,7 +213,7 @@ class _GuardianLoginScreenState extends State<GuardianLoginScreen> {
                     width: double.infinity,
                     child: CustomButton(
                       label: 'Login',
-                      onPressed: _handleLogin,
+                      onPressed: _isFormValid ? _handleLogin : null,
                       color: green,
                       textColor: Colors.white,
                     ),
