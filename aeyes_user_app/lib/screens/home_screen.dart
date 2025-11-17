@@ -333,7 +333,7 @@ class _HomeScreenState extends State<HomeScreen>
     _locationUpdateTimer = _globalLocationUpdateTimer;
   }
   
-  /// Automatically send predefined SMS message to all guardians (no dialog)
+  /// Automatically send predefined alert message to all guardians (no dialog)
   Future<void> _sendPredefinedSMS() async {
     try {
       // Get single predefined message
@@ -351,7 +351,7 @@ class _HomeScreenState extends State<HomeScreen>
         return;
       }
       
-      // Send SMS to all guardians automatically
+      // Send alert to all guardians automatically
       final results = await _smsService.sendSMSToAllGuardians(message);
       
       if (mounted) {
@@ -372,45 +372,40 @@ class _HomeScreenState extends State<HomeScreen>
             await widget.ttsService!.speak('No guardians found');
           }
         } else {
-          // Count different statuses
-          final smsSuccessCount = results.values.where((v) => v == 'sms_success' || v == 'both').length;
-          final appOnlyCount = results.values.where((v) => v == 'app_only').length;
-          final bothCount = results.values.where((v) => v == 'both').length;
-          final appMessageCount = appOnlyCount + bothCount; // Total app messages sent
+          final successCount = results.values.where((v) => v == 'app_alert').length;
+          final failedCount = totalCount - successCount;
           
-          // Build success message
           String successMessage;
-          if (smsSuccessCount > 0 && appMessageCount > 0) {
-            // Both SMS and app messages sent
-            successMessage = 'Alert sent successfully! SMS to $smsSuccessCount guardian${smsSuccessCount > 1 ? 's' : ''} and message to $appMessageCount guardian app${appMessageCount > 1 ? 's' : ''}';
-          } else if (appMessageCount > 0) {
-            // Only app messages (no phone numbers or SMS failed)
-            successMessage = 'Alert sent successfully to $appMessageCount guardian app${appMessageCount > 1 ? 's' : ''}';
+          if (successCount > 0 && failedCount == 0) {
+            successMessage = 'Alert sent to $successCount guardian${successCount > 1 ? 's' : ''}';
+          } else if (successCount > 0 && failedCount > 0) {
+            successMessage = 'Alert sent to $successCount guardian${successCount > 1 ? 's' : ''}. $failedCount failed.';
           } else {
-            // SMS sent but app message failed (shouldn't happen, but handle it)
-            successMessage = 'SMS sent to $smsSuccessCount guardian${smsSuccessCount > 1 ? 's' : ''}';
+            successMessage = 'Alert failed to send.';
           }
           
-          // Use TTS to announce success
+          // Use TTS to announce success/failure
           if (widget.ttsService != null) {
-            await widget.ttsService!.speak(successMessage);
+            await widget.ttsService!.speak(
+              successCount > 0 ? 'Alert sent' : 'Alert failed',
+            );
           }
           
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(successMessage),
-              backgroundColor: AppTheme.success,
+              backgroundColor: successCount > 0 ? AppTheme.success : AppTheme.error,
               duration: const Duration(seconds: 4),
             ),
           );
         }
       }
     } catch (e) {
-      print('Error sending predefined SMS: $e');
+      print('Error sending predefined alert: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error sending SMS: $e'),
+            content: Text('Error sending alert: $e'),
             backgroundColor: AppTheme.error,
           ),
         );
@@ -738,6 +733,7 @@ class _HomeScreenState extends State<HomeScreen>
                 _HomeScreenState._globalCurrentPosition = null;
                 // Stop guardian message listener
                 MyApp.stopGuardianMessageListener();
+                MyApp.stopGuardianAlertListener();
                 // Navigate to role selection
                 if (mounted) {
                   Navigator.pushNamedAndRemoveUntil(

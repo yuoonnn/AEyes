@@ -30,7 +30,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   List<Map<String, dynamic>> linkedGuardians = [];
   final TextEditingController guardianEmailController = TextEditingController();
   final TextEditingController guardianNameController = TextEditingController();
-  final TextEditingController guardianPhoneController = TextEditingController();
   bool isDeletingAccount = false;
 
   @override
@@ -44,7 +43,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void dispose() {
     guardianEmailController.dispose();
     guardianNameController.dispose();
-    guardianPhoneController.dispose();
     super.dispose();
   }
 
@@ -73,23 +71,16 @@ class _ProfileScreenState extends State<ProfileScreen> {
       await _databaseService.linkGuardian(
         guardianEmail: guardianEmailController.text.trim(),
         guardianName: guardianNameController.text.trim(),
-        phone: guardianPhoneController.text.trim().isNotEmpty 
-            ? guardianPhoneController.text.trim() 
-            : null,
       );
       
-      final phoneWasEmpty = guardianPhoneController.text.trim().isEmpty;
       guardianEmailController.clear();
       guardianNameController.clear();
-      guardianPhoneController.clear();
       await _loadGuardians();
       
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(phoneWasEmpty
-                ? 'Guardian linked! Note: Add phone number for SMS alerts.'
-                : 'Guardian linked successfully!'),
+          const SnackBar(
+            content: Text('Guardian linked successfully!'),
           ),
         );
         Navigator.pop(context); // Close dialog
@@ -246,7 +237,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
     // Clear controllers when opening dialog
     guardianNameController.clear();
     guardianEmailController.clear();
-    guardianPhoneController.clear();
 
     showDialog(
       context: context,
@@ -267,20 +257,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 16),
-              CustomTextField(
-                hintText: 'Guardian Phone Number (for SMS alerts)',
-                controller: guardianPhoneController,
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Phone number is required for SMS emergency alerts',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
             ],
           ),
         ),
@@ -602,52 +578,61 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           else
                             ...linkedGuardians.map((guardian) => Card(
                               margin: const EdgeInsets.only(bottom: 8),
-                              child: ListTile(
-                                leading: const Icon(Icons.person, color: Color(0xFF388E3C)),
-                                title: Text(guardian['guardian_name'] ?? 'Unknown'),
-                                subtitle: Column(
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text(guardian['guardian_email'] ?? ''),
-                                    if (guardian['phone'] != null && (guardian['phone'] as String).isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 4),
-                                        child: Row(
-                                          children: [
-                                            const Icon(Icons.phone, size: 14, color: Colors.grey),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              guardian['phone'] as String,
-                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                    const Icon(Icons.person, color: Color(0xFF388E3C)),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            guardian['guardian_name'] ?? 'Unknown',
+                                            style: const TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              fontSize: 16,
                                             ),
-                                          ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            guardian['guardian_email'] ?? '',
+                                            style: TextStyle(
+                                              color: Colors.grey.shade700,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      crossAxisAlignment: CrossAxisAlignment.end,
+                                      children: [
+                                        Chip(
+                                          label: Text(
+                                            guardian['relationship_status'] == 'active'
+                                                ? 'Active'
+                                                : 'Pending',
+                                            style: const TextStyle(fontSize: 12),
+                                          ),
+                                          backgroundColor:
+                                              guardian['relationship_status'] == 'active'
+                                                  ? Colors.green.shade100
+                                                  : Colors.orange.shade100,
                                         ),
-                                      ),
-                                  ],
-                                ),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Chip(
-                                      label: Text(
-                                        guardian['relationship_status'] == 'active' 
-                                            ? 'Active' 
-                                            : 'Pending',
-                                        style: const TextStyle(fontSize: 12),
-                                      ),
-                                      backgroundColor: guardian['relationship_status'] == 'active'
-                                          ? Colors.green.shade100
-                                          : Colors.orange.shade100,
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete, color: Colors.red),
-                                      onPressed: () => _deleteGuardian(guardian['guardian_id'] as String),
-                                      tooltip: 'Remove guardian',
+                                        IconButton(
+                                          icon: const Icon(Icons.delete, color: Colors.red),
+                                          onPressed: () =>
+                                              _deleteGuardian(guardian['guardian_id'] as String),
+                                          tooltip: 'Remove guardian',
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 ),
-                                isThreeLine: guardian['phone'] != null && (guardian['phone'] as String).isNotEmpty,
                               ),
                             )),
                           if (successMessage != null) ...[

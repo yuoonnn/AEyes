@@ -258,7 +258,6 @@ class DatabaseService {
   Future<void> linkGuardian({
     required String guardianEmail,
     required String guardianName,
-    String? phone,
     String relationshipStatus = 'pending',
   }) async {
     if (currentUserId == null) throw Exception('User not authenticated');
@@ -272,7 +271,6 @@ class DatabaseService {
       'user_id': currentUserId,
       'guardian_email': normalizedEmail, // Store normalized email
       'guardian_name': guardianName,
-      'phone': phone,
       'relationship_status': relationshipStatus,
       'created_at': FieldValue.serverTimestamp(),
     });
@@ -478,6 +476,28 @@ class DatabaseService {
       print('This might be a Firestore rules issue. Make sure rules are deployed.');
       rethrow;
     }
+  }
+
+  /// Get guardian link document IDs for the currently authenticated guardian
+  Future<List<String>> getGuardianLinkIdsForCurrentGuardian({
+    bool activeOnly = true,
+  }) async {
+    final user = _auth.currentUser;
+    if (user?.email == null) {
+      return [];
+    }
+
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    Query query = _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: normalizedEmail);
+
+    if (activeOnly) {
+      query = query.where('relationship_status', isEqualTo: 'active');
+    }
+
+    final snapshot = await query.get();
+    return snapshot.docs.map((doc) => doc.id).toList();
   }
 
   /// Approve a pending link request

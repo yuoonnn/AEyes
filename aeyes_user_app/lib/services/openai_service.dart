@@ -49,18 +49,18 @@ class OpenAIService {
           "content": [
             {
               "type": "text",
-              "text": prompt ??
-                  "You are acting as an assistive device for a blind individual. I need you to narrate what's in front of me. Point out any potential hazard or obstacles and provide concise, safe guidance if needed."
+              "text":
+                  prompt ??
+                  "You are acting as an assistive device for a blind individual. I need you to narrate what's in front of me. Point out any potential hazard or obstacles and provide a brief explanation and safe guidance if needed. If there are any signage, what do they say? If there's none disregard.",
             },
             {
               "type": "image_url",
-              "image_url": {"url": dataUri}
-            }
-          ]
-        }
-      ]
+              "image_url": {"url": dataUri},
+            },
+          ],
+        },
+      ],
     };
-
 
     final response = await http.post(
       url,

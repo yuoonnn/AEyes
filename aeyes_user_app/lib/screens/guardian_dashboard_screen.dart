@@ -72,7 +72,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   Future<void> _confirmDeleteAccount() async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+    final titleStyle =
+        theme.textTheme.titleLarge?.copyWith(
           color: isDark ? Colors.white : Colors.black87,
           fontWeight: FontWeight.bold,
         ) ??
@@ -81,7 +82,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           fontSize: 20,
           fontWeight: FontWeight.bold,
         );
-    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+    final contentStyle =
+        theme.textTheme.bodyMedium?.copyWith(
           color: isDark ? Colors.grey[300] : Colors.black87,
         ) ??
         TextStyle(
@@ -106,9 +108,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -134,12 +134,14 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
     });
 
     if (result != null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(result)));
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Your guardian account has been deleted.')),
+        const SnackBar(
+          content: Text('Your guardian account has been deleted.'),
+        ),
       );
       Navigator.pushNamedAndRemoveUntil(context, '/', (route) => false);
     }
@@ -241,7 +243,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   Future<void> _unlinkUser(String userId) async {
     final theme = Theme.of(context);
     final isDark = theme.brightness == Brightness.dark;
-    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+    final titleStyle =
+        theme.textTheme.titleLarge?.copyWith(
           color: theme.colorScheme.onSurface,
           fontWeight: FontWeight.bold,
         ) ??
@@ -250,7 +253,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           fontSize: 20,
           fontWeight: FontWeight.bold,
         );
-    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+    final contentStyle =
+        theme.textTheme.bodyMedium?.copyWith(
           color: isDark ? Colors.grey[300] : Colors.black87,
         ) ??
         TextStyle(
@@ -294,9 +298,9 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error unlinking user: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error unlinking user: $e')));
       }
     } finally {
       setState(() => isLoading = false);
@@ -593,14 +597,15 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
     final l10n = AppLocalizations.of(context);
     final languageService = Provider.of<LanguageService>(context);
     final user = FirebaseAuth.instance.currentUser;
-    final int? batteryLevel =
-        deviceStatus != null ? deviceStatus!['battery_level'] as int? : null;
+    final int? batteryLevel = deviceStatus != null
+        ? deviceStatus!['battery_level'] as int?
+        : null;
     final dynamic batteryTimestamp = deviceStatus != null
         ? (deviceStatus!['last_seen'] ?? deviceStatus!['updated_at'])
         : null;
     final String? batteryUpdatedLabel = batteryTimestamp != null
         ? (l10n?.lastUpdated(_formatTimestamp(batteryTimestamp)) ??
-            'Last updated: ${_formatTimestamp(batteryTimestamp)}')
+              'Last updated: ${_formatTimestamp(batteryTimestamp)}')
         : null;
 
     return Scaffold(
@@ -623,6 +628,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
               await _authService.logout();
               // Stop guardian message listener
               MyApp.stopGuardianMessageListener();
+              MyApp.stopGuardianAlertListener();
               // Navigate to role selection
               if (mounted) {
                 Navigator.pushNamedAndRemoveUntil(
@@ -872,7 +878,10 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                 ),
                               ),
                               IconButton(
-                                icon: const Icon(Icons.link_off, color: Colors.red),
+                                icon: const Icon(
+                                  Icons.link_off,
+                                  color: Colors.red,
+                                ),
                                 onPressed: () {
                                   if (selectedUserId != null) {
                                     _unlinkUser(selectedUserId!);
@@ -929,7 +938,9 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                       subtitle: Text(selectedUser?['email'] as String? ?? ''),
                       trailing: IconButton(
                         icon: const Icon(Icons.link_off, color: Colors.red),
-                        onPressed: () => _unlinkUser(selectedUser?['user_id'] as String? ?? ''),
+                        onPressed: () => _unlinkUser(
+                          selectedUser?['user_id'] as String? ?? '',
+                        ),
                         tooltip: 'Unlink User',
                       ),
                     ),
@@ -1210,16 +1221,17 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                     color: batteryLevel < 20
                                         ? AppTheme.error
                                         : batteryLevel < 50
-                                            ? AppTheme.warning
-                                            : AppTheme.success,
+                                        ? AppTheme.warning
+                                        : AppTheme.success,
                                   ),
                                 )
                               else
                                 Text(
                                   l10n?.noBatteryDataAvailable ??
                                       'No battery data available',
-                                  style: AppTheme.textStyleBody
-                                      .copyWith(color: AppTheme.textSecondary),
+                                  style: AppTheme.textStyleBody.copyWith(
+                                    color: AppTheme.textSecondary,
+                                  ),
                                 ),
                               if (batteryUpdatedLabel != null)
                                 Padding(
@@ -1228,8 +1240,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                   ),
                                   child: Text(
                                     batteryUpdatedLabel,
-                                    style:
-                                        AppTheme.textStyleCaption.copyWith(
+                                    style: AppTheme.textStyleCaption.copyWith(
                                       color: AppTheme.textSecondary,
                                     ),
                                   ),
@@ -1269,7 +1280,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                         Navigator.push(
                           context,
                           MaterialPageRoute(
-                            builder: (context) => const GuardianMessagesScreen(),
+                            builder: (context) =>
+                                const GuardianMessagesScreen(),
                           ),
                         );
                       },

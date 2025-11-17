@@ -70,7 +70,7 @@ void main() async {
   const openAiKey = String.fromEnvironment(
     'OPENAI_API_KEY',
     defaultValue:
-        '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',
+        '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',
   );
   final openAIService = OpenAIService(openAiKey);
 
@@ -166,8 +166,8 @@ void main() async {
     }
   };
 
-  // Global function to send predefined SMS with TTS feedback
-  Future<void> _sendPredefinedSMSGlobal(TTSService? ttsService) async {
+  // Global function to send predefined alert with TTS feedback
+  Future<void> _sendEmergencyAlertGlobal(TTSService? ttsService) async {
     try {
       final smsService = SMSService();
       // Get single predefined message
@@ -182,7 +182,7 @@ void main() async {
         return;
       }
 
-      // Send SMS to all guardians automatically
+      // Send alert to all guardians automatically
       final results = await smsService.sendSMSToAllGuardians(message);
 
       // Remove summary from results for counting
@@ -201,7 +201,7 @@ void main() async {
         }
       }
     } catch (e) {
-      print('Error sending predefined SMS: $e');
+      print('Error sending predefined alert: $e');
       if (ttsService != null) {
         try {
           await ttsService.speak('Error sending alert');
@@ -254,12 +254,12 @@ void main() async {
 
       case '1':
       case 'help':
-        // Button 1: Automatically send predefined SMS to guardians
+        // Button 1: Automatically send predefined alert to guardians
         // Only trigger on short press, not on long press (power on/off)
         if (event == null || event == 'POWER_SHORT') {
-          await _sendPredefinedSMSGlobal(ttsService);
+          await _sendEmergencyAlertGlobal(ttsService);
         } else if (event == 'POWER_LONG') {
-          // Long press is for power on/off, don't trigger SMS
+          // Long press is for power on/off, don't trigger alert
           bluetoothService.log('Button 1 long press (power) - ignoring');
         }
         break;
@@ -517,6 +517,7 @@ class _UserRoleCheckerState extends State<_UserRoleChecker> {
 
     // Check if user is a guardian
     if (_cachedProfile != null && _cachedProfile!.role == 'guardian') {
+      MyApp.of(context)?.startGuardianAlertListener();
       return const GuardianDashboardScreen();
     } else {
       // Regular user - show home screen
@@ -556,6 +557,10 @@ class MyApp extends StatelessWidget {
   static DateTime? _lastMessageSeenAt;
   static StreamSubscription? _messageStreamSubscription;
   static bool _listenerInitialized = false;
+  static StreamSubscription? _guardianAlertSubscription;
+  static bool _guardianAlertListenerInitialized = false;
+  static DateTime? _lastGuardianAlertAt;
+  static final Set<String> _processedGuardianAlertIds = <String>{};
 
   /// Stop the guardian message listener (call this on logout)
   static void stopGuardianMessageListener() {
@@ -564,6 +569,16 @@ class MyApp extends StatelessWidget {
     _listenerInitialized = false;
     _lastMessageSeenAt = null;
     print('🛑 Guardian message listener stopped');
+  }
+
+  /// Stop guardian alert listener (call when guardian logs out)
+  static void stopGuardianAlertListener() {
+    _guardianAlertSubscription?.cancel();
+    _guardianAlertSubscription = null;
+    _guardianAlertListenerInitialized = false;
+    _lastGuardianAlertAt = null;
+    _processedGuardianAlertIds.clear();
+    print('🛑 Guardian alert listener stopped');
   }
 
   // Make this public so it can be called from main()
@@ -623,6 +638,48 @@ class MyApp extends StatelessWidget {
     }
   }
 
+  Future<void> startGuardianAlertListener() async {
+    if (_guardianAlertListenerInitialized) {
+      return;
+    }
+
+    final db = DatabaseService();
+    List<String> guardianIds;
+
+    try {
+      guardianIds = await db.getGuardianLinkIdsForCurrentGuardian();
+    } catch (e) {
+      print('Error fetching guardian links: $e');
+      return;
+    }
+
+    if (guardianIds.isEmpty) {
+      return;
+    }
+
+    final guardianIdSet = guardianIds.toSet();
+    _guardianAlertSubscription?.cancel();
+
+    try {
+      _guardianAlertSubscription = db.getGuardianMessagesStream().listen(
+        (snapshot) {
+          _handleGuardianAlerts(snapshot, guardianIdSet);
+        },
+        onError: (error) {
+          print('Error in guardian alert stream: $error');
+          stopGuardianAlertListener();
+        },
+      );
+
+      _guardianAlertListenerInitialized = true;
+      _lastGuardianAlertAt ??= DateTime.now();
+      print('✅ Guardian alert listener started');
+    } catch (e) {
+      print('Error starting guardian alert listener: $e');
+      stopGuardianAlertListener();
+    }
+  }
+
   /// Handle new guardian messages - works in foreground and background
   void _handleNewGuardianMessages(QuerySnapshot snapshot) {
     for (final doc in snapshot.docs) {
@@ -678,6 +735,48 @@ class MyApp extends StatelessWidget {
           print('Error in TTS retry: $retryError');
         }
       });
+    }
+  }
+
+  void _handleGuardianAlerts(QuerySnapshot snapshot, Set<String> guardianIds) {
+    if (guardianIds.isEmpty) return;
+
+    for (final doc in snapshot.docs.reversed) {
+      if (_processedGuardianAlertIds.contains(doc.id)) {
+        continue;
+      }
+
+      final data = doc.data() as Map<String, dynamic>;
+      final direction = data['direction'] as String? ?? '';
+      if (direction != 'user_to_guardian') continue;
+
+      final messageType = data['message_type'] as String? ?? 'text';
+      if (messageType != 'alert') continue;
+
+      final guardianId = data['guardian_id'] as String?;
+      if (guardianId == null || !guardianIds.contains(guardianId)) continue;
+
+      final ts = data['created_at'];
+      final createdAt = ts is Timestamp ? ts.toDate() : DateTime.now();
+      if (_lastGuardianAlertAt != null &&
+          !createdAt.isAfter(_lastGuardianAlertAt!)) {
+        continue;
+      }
+
+      _processedGuardianAlertIds.add(doc.id);
+      if (_processedGuardianAlertIds.length > 200) {
+        _processedGuardianAlertIds.clear();
+      }
+
+      _lastGuardianAlertAt = createdAt;
+
+      final content =
+          (data['content'] as String?) ?? 'Emergency alert received';
+      NotificationService.showSimple(
+        id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+        title: 'Emergency alert',
+        body: content.length > 100 ? '${content.substring(0, 100)}…' : content,
+      );
     }
   }
 
