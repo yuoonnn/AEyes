@@ -70,7 +70,7 @@ void main() async {
   const openAiKey = String.fromEnvironment(
     'OPENAI_API_KEY',
     defaultValue:
-        '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',
+        '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',
   );
   final openAIService = OpenAIService(openAiKey);
 
