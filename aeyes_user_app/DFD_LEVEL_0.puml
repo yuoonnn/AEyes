@@ -1,0 +1,107 @@
+@startuml DFD Level 0 - AEyes System Context Diagram
+!theme plain
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam defaultFontSize 14
+skinparam arrow {
+    FontSize 11
+    Thickness 2
+}
+skinparam component {
+    BackgroundColor #FFE5B4
+    BorderColor #000000
+    FontSize 13
+    Padding 15
+}
+skinparam rectangle {
+    BackgroundColor #B3D9FF
+    BorderColor #000000
+    FontSize 12
+    Padding 12
+}
+skinparam cloud {
+    BackgroundColor #B3FFB3
+    BorderColor #000000
+    FontSize 12
+    Padding 12
+}
+skinparam database {
+    BackgroundColor #FFB3B3
+    BorderColor #000000
+    FontSize 12
+    Padding 12
+}
+
+title <size:18><b>DFD Level 0 - AEyes System Context Diagram</b></size>
+
+' ============================================
+' External Entities - Left Side (Top to Bottom)
+' ============================================
+rectangle "User\n(Visually Impaired)" as User
+rectangle "Guardian\n(Caregiver)" as Guardian
+rectangle "ESP32 Device\n(Smart Glasses)" as ESP32
+
+' ============================================
+' Main System Process - Center
+' ============================================
+package "AEyes System" #FFE5B4 {
+    component [<b>AEyes System</b>\nMobile App + Cloud] as System
+}
+
+' ============================================
+' External Services - Right Side (Top to Bottom)
+' ============================================
+cloud "OpenAI API\n(AI Service)" as OpenAI
+database "Firebase Database\n(Cloud Storage)" as Firebase
+cloud "SMS Service\n(Emergency)" as SMS
+
+' ============================================
+' Layout: Vertical Stacking for Better Spacing
+' ============================================
+User -[hidden]down- Guardian
+Guardian -[hidden]down- ESP32
+OpenAI -[hidden]down- Firebase
+Firebase -[hidden]down- SMS
+
+' ============================================
+' Data Flows: User ↔ System (Grouped)
+' ============================================
+User --> System : User Input:\n• Credentials\n• Settings\n• Voice Commands\n• Emergency Alerts\n• Messages
+
+System --> User : System Output:\n• Auth Status\n• AI Analysis (TTS)\n• Navigation Guidance\n• Notifications\n• Settings Confirmation
+
+' ============================================
+' Data Flows: Guardian ↔ System (Grouped)
+' ============================================
+Guardian --> System : Guardian Input:\n• Credentials\n• Messages to User\n• Settings\n• Link Requests
+
+System --> Guardian : Guardian Output:\n• Location Updates\n• Emergency Alerts\n• User Status\n• Messages from User\n• Detection Events
+
+' ============================================
+' Data Flows: ESP32 ↔ System (Grouped)
+' ============================================
+ESP32 --> System : Device Data:\n• Captured Images\n• Button Events\n• Voice Audio\n• Battery Status\n• Device Status
+
+System --> ESP32 : System Commands:\n• Image Capture Requests\n• Audio Output (TTS)\n• Control Commands\n• Connection Status
+
+' ============================================
+' Data Flows: System ↔ OpenAI
+' ============================================
+System --> OpenAI : Image Data\n+ Analysis Prompts
+OpenAI --> System : Analysis Results\n+ Text Descriptions
+
+' ============================================
+' Data Flows: System ↔ Firebase
+' ============================================
+System --> Firebase : Write Data:\n• User Profiles\n• Settings\n• Locations\n• Messages\n• Detection Events\n• Device Info\n• Guardian Links\n• Emergency Alerts
+
+Firebase --> System : Read Data:\n• User Profiles\n• Settings\n• Location History\n• Messages\n• Detection Events\n• Device Status\n• Guardian Info\n• Emergency Alerts
+
+' ============================================
+' Data Flows: System ↔ SMS Service
+' ============================================
+System --> SMS : Emergency Messages\n+ Location Notifications
+SMS --> System : SMS Delivery Status
+
+@enduml
+

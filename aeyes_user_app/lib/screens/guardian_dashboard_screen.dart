@@ -33,8 +33,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
 
   // Profile editing controllers
   final TextEditingController nameController = TextEditingController();
-  final TextEditingController phoneController = TextEditingController();
-  final TextEditingController addressController = TextEditingController();
 
   // Linked users
   List<Map<String, dynamic>> linkedUsers = [];
@@ -68,8 +66,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
     _locationSubscription?.cancel();
     _deviceSubscription?.cancel();
     nameController.dispose();
-    phoneController.dispose();
-    addressController.dispose();
     super.dispose();
   }
 
@@ -201,8 +197,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       // Initialize profile editing controllers
       if (profile != null) {
         nameController.text = profile.name;
-        phoneController.text = profile.phone ?? '';
-        addressController.text = profile.address ?? '';
       }
     } catch (e) {
       // Show error to user
@@ -241,6 +235,71 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    }
+  }
+
+  Future<void> _unlinkUser(String userId) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Unlink User', style: titleStyle),
+        content: Text(
+          'Are you sure you want to unlink this user? You will no longer receive their alerts and messages.',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Unlink', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => isLoading = true);
+    try {
+      await _databaseService.unlinkUserAsGuardian(userId);
+      // Reload profile to refresh linked users
+      await _loadProfile();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('User unlinked successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error unlinking user: $e')),
+        );
+      }
+    } finally {
+      setState(() => isLoading = false);
     }
   }
 
@@ -386,12 +445,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
           id: user.uid,
           name: nameController.text.trim(),
           email: user.email ?? '',
-          phone: phoneController.text.trim().isEmpty
-              ? null
-              : phoneController.text.trim(),
-          address: addressController.text.trim().isEmpty
-              ? null
-              : addressController.text.trim(),
+          phone: guardianProfile?.phone,
+          address: guardianProfile?.address,
           role: 'guardian',
         ),
       );
@@ -805,11 +860,27 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            l10n?.selectUser ?? 'Select User',
-                            style: AppTheme.textStyleBodyLarge.copyWith(
-                              fontWeight: AppTheme.fontWeightBold,
-                            ),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  l10n?.selectUser ?? 'Select User',
+                                  style: AppTheme.textStyleBodyLarge.copyWith(
+                                    fontWeight: AppTheme.fontWeightBold,
+                                  ),
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.link_off, color: Colors.red),
+                                onPressed: () {
+                                  if (selectedUserId != null) {
+                                    _unlinkUser(selectedUserId!);
+                                  }
+                                },
+                                tooltip: 'Unlink Selected User',
+                              ),
+                            ],
                           ),
                           SizedBox(height: AppTheme.spacingSM),
                           DropdownButton<String>(
@@ -856,6 +927,11 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                       leading: const Icon(Icons.person, color: AppTheme.info),
                       title: Text(selectedUser?['name'] as String? ?? 'User'),
                       subtitle: Text(selectedUser?['email'] as String? ?? ''),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.link_off, color: Colors.red),
+                        onPressed: () => _unlinkUser(selectedUser?['user_id'] as String? ?? ''),
+                        tooltip: 'Unlink User',
+                      ),
                     ),
                   ),
                 SizedBox(height: AppTheme.spacingLG),
@@ -899,10 +975,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                     if (guardianProfile != null) {
                                       final profile = guardianProfile!;
                                       nameController.text = profile.name;
-                                      phoneController.text =
-                                          profile.phone ?? '';
-                                      addressController.text =
-                                          profile.address ?? '';
                                     }
                                   });
                                 },
@@ -943,23 +1015,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                     user?.email ??
                                     (l10n?.noEmail ?? 'No email'),
                               ),
-                              SizedBox(height: AppTheme.spacingMD),
-                              CustomTextField(
-                                hintText:
-                                    l10n?.enterYourPhoneNumber ??
-                                    'Enter your phone number',
-                                controller: phoneController,
-                                enabled: true,
-                                keyboardType: TextInputType.phone,
-                              ),
-                              SizedBox(height: AppTheme.spacingMD),
-                              CustomTextField(
-                                hintText:
-                                    l10n?.enterYourAddress ??
-                                    'Enter your address',
-                                controller: addressController,
-                                enabled: true,
-                              ),
                             ] else ...[
                               _buildProfileItem(
                                 icon: Icons.person,
@@ -979,22 +1034,6 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                     user?.email ??
                                     (l10n?.noEmail ?? 'No email'),
                               ),
-                              if (guardianProfile?.phone != null) ...[
-                                const Divider(),
-                                _buildProfileItem(
-                                  icon: Icons.phone,
-                                  label: l10n?.phone ?? 'Phone',
-                                  value: guardianProfile!.phone!,
-                                ),
-                              ],
-                              if (guardianProfile?.address != null) ...[
-                                const Divider(),
-                                _buildProfileItem(
-                                  icon: Icons.location_on,
-                                  label: l10n?.address ?? 'Address',
-                                  value: guardianProfile!.address!,
-                                ),
-                              ],
                             ],
                           ],
                         ),

@@ -67,7 +67,11 @@ void main() async {
   final bluetoothService =
       AppBluetoothService(); // Changed to AppBluetoothService
   // Read OpenAI API key from a secure runtime define (never commit keys)
-  const openAiKey = String.fromEnvironment('OPENAI_API_KEY', defaultValue: '');
+  const openAiKey = String.fromEnvironment(
+    'OPENAI_API_KEY',
+    defaultValue:
+        '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',
+  );
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();
@@ -168,21 +172,23 @@ void main() async {
       final smsService = SMSService();
       // Get single predefined message
       final message = await smsService.getPredefinedMessage();
-      
+
       if (message.isEmpty) {
         if (ttsService != null) {
-          await ttsService.speak('No predefined message found. Please set a message in Settings.');
+          await ttsService.speak(
+            'No predefined message found. Please set a message in Settings.',
+          );
         }
         return;
       }
-      
+
       // Send SMS to all guardians automatically
       final results = await smsService.sendSMSToAllGuardians(message);
-      
+
       // Remove summary from results for counting
       results.remove('_summary');
       final totalCount = results.length;
-      
+
       if (totalCount == 0) {
         // No guardians at all
         if (ttsService != null) {
@@ -215,7 +221,7 @@ void main() async {
     final trimmed = buttonData.trim();
     String buttonId;
     String? event;
-    
+
     if (trimmed.contains(':')) {
       final parts = trimmed.split(':');
       buttonId = parts[0].trim();
@@ -245,7 +251,7 @@ void main() async {
           }
         }
         break;
-      
+
       case '1':
       case 'help':
         // Button 1: Automatically send predefined SMS to guardians
@@ -257,7 +263,7 @@ void main() async {
           bluetoothService.log('Button 1 long press (power) - ignoring');
         }
         break;
-      
+
       case '2':
         // Button 2: Capture / Auto-scan toggle
         if (event == 'CAPTURE') {
@@ -290,7 +296,7 @@ void main() async {
           }
         }
         break;
-      
+
       default:
         bluetoothService.log('📱 Unhandled button: $buttonData');
     }
@@ -307,11 +313,11 @@ void main() async {
     if (_pendingVoiceCommand != null &&
         _voiceCommandTimestamp != null &&
         DateTime.now().difference(_voiceCommandTimestamp!).inSeconds < 5) {
-      
       // Check if this is a location command (should NOT go to OpenAI)
       if (_pendingVoiceCommand != null) {
         final lowerCommand = _pendingVoiceCommand!.toLowerCase().trim();
-        final isLocationCommand = lowerCommand.contains('find ') ||
+        final isLocationCommand =
+            lowerCommand.contains('find ') ||
             lowerCommand.contains('where is ') ||
             lowerCommand.contains('nearby') ||
             lowerCommand.contains('around me') ||
@@ -319,7 +325,7 @@ void main() async {
             lowerCommand.contains('my location') ||
             lowerCommand.contains('where am i') ||
             lowerCommand.contains('current location');
-        
+
         if (isLocationCommand) {
           bluetoothService.log(
             '📍 Location command detected, skipping OpenAI image analysis: "$_pendingVoiceCommand"',
@@ -331,7 +337,7 @@ void main() async {
           return;
         }
       }
-      
+
       voicePrompt = _pendingVoiceCommand;
       bluetoothService.log('🎤 Using voice command as prompt: "$voicePrompt"');
       // Clear the pending command after using it
@@ -373,7 +379,7 @@ void main() async {
       child: app,
     ),
   );
-  
+
   // Start guardian message listener after app is initialized
   // This ensures it works even when app is in background
   Future.delayed(const Duration(seconds: 1), () {
@@ -529,9 +535,9 @@ class MyApp extends StatelessWidget {
   final OpenAIService openAIService;
   final SpeechService? speechService; // Optional due to plugin compatibility
   final TTSService ttsService;
-  
+
   static MyApp? _instance;
-  
+
   MyApp({
     super.key,
     required this.bluetoothService,
@@ -541,7 +547,7 @@ class MyApp extends StatelessWidget {
   }) {
     _instance = this;
   }
-  
+
   /// Get the current MyApp instance (for accessing services from widgets)
   static MyApp? of(BuildContext context) {
     return _instance;
@@ -550,7 +556,7 @@ class MyApp extends StatelessWidget {
   static DateTime? _lastMessageSeenAt;
   static StreamSubscription? _messageStreamSubscription;
   static bool _listenerInitialized = false;
-  
+
   /// Stop the guardian message listener (call this on logout)
   static void stopGuardianMessageListener() {
     _messageStreamSubscription?.cancel();
@@ -573,7 +579,7 @@ class MyApp extends StatelessWidget {
       }
       return;
     }
-    
+
     // Only start listener if user is authenticated
     final db = DatabaseService();
     if (db.currentUserId == null) {
@@ -583,24 +589,27 @@ class MyApp extends StatelessWidget {
       _listenerInitialized = false;
       return;
     }
-    
+
     // Cancel existing listener if any
     _messageStreamSubscription?.cancel();
-    
+
     // Listen to messages for local notifications and auto TTS
     try {
-      _messageStreamSubscription = db.getMessagesStream().listen((snapshot) {
-        _handleNewGuardianMessages(snapshot);
-      }, onError: (error) {
-        print('Error in message stream: $error');
-        // If error is due to authentication, stop listening
-        if (error.toString().contains('not authenticated')) {
-          _messageStreamSubscription?.cancel();
-          _messageStreamSubscription = null;
-          _listenerInitialized = false;
-        }
-      });
-      
+      _messageStreamSubscription = db.getMessagesStream().listen(
+        (snapshot) {
+          _handleNewGuardianMessages(snapshot);
+        },
+        onError: (error) {
+          print('Error in message stream: $error');
+          // If error is due to authentication, stop listening
+          if (error.toString().contains('not authenticated')) {
+            _messageStreamSubscription?.cancel();
+            _messageStreamSubscription = null;
+            _listenerInitialized = false;
+          }
+        },
+      );
+
       _listenerInitialized = true;
       print('✅ Guardian message listener started');
     } catch (e) {
@@ -621,12 +630,13 @@ class MyApp extends StatelessWidget {
       if (data['direction'] == 'guardian_to_user') {
         final ts = data['created_at'];
         final createdAt = ts is Timestamp ? ts.toDate() : DateTime.now();
-        
+
         // Only process new messages
-        if (_lastMessageSeenAt == null || createdAt.isAfter(_lastMessageSeenAt!)) {
+        if (_lastMessageSeenAt == null ||
+            createdAt.isAfter(_lastMessageSeenAt!)) {
           _lastMessageSeenAt = createdAt;
           final content = (data['content'] as String?) ?? 'New message';
-          
+
           // Show notification (works in background)
           NotificationService.showSimple(
             id: 2001,
@@ -635,7 +645,7 @@ class MyApp extends StatelessWidget {
                 ? '${content.substring(0, 100)}…'
                 : content,
           );
-          
+
           // Auto TTS: Automatically play the message via TTS
           // This will work even when app is in background
           _speakGuardianMessage(content);
@@ -649,10 +659,10 @@ class MyApp extends StatelessWidget {
     try {
       // Stop any current TTS first
       await ttsService.stop();
-      
+
       // Wait a moment for any ongoing audio to stop
       await Future.delayed(const Duration(milliseconds: 300));
-      
+
       // Speak the message - TTS works in background on Android
       final message = 'Message from guardian: $content';
       await ttsService.speak(message);
@@ -761,8 +771,10 @@ class MyApp extends StatelessWidget {
                   speechService: speechService,
                   ttsService: ttsService,
                 ),
-                '/analysis': (context) => AnalysisScreen(ttsService: ttsService),
-                '/settings': (context) => SettingsScreen(ttsService: ttsService),
+                '/analysis': (context) =>
+                    AnalysisScreen(ttsService: ttsService),
+                '/settings': (context) =>
+                    SettingsScreen(ttsService: ttsService),
                 '/profile': (context) => ProfileScreen(ttsService: ttsService),
                 '/bluetooth': (context) => BluetoothScreen(
                   bluetoothService: bluetoothService,

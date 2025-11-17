@@ -402,14 +402,14 @@ class DatabaseService {
           
           // Debug: Print all pending emails
           for (final doc in allPending.docs) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             final email = data['guardian_email'] as String?;
             print('  - Pending request email: $email (normalized: ${email?.trim().toLowerCase()})');
           }
           
           // Filter by email (case-insensitive)
           matchingDocs = allPending.docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
+            final data = doc.data();
             final email = data['guardian_email'] as String?;
             if (email == null) return false;
             final emailNormalized = email.trim().toLowerCase();
@@ -700,9 +700,6 @@ class DatabaseService {
       throw Exception('Guardian not authenticated');
     }
     
-    // Normalize email to lowercase for consistent matching
-    final normalizedEmail = user!.email!.trim().toLowerCase();
-    
     // Get guardian document IDs first (these are the guardian_id values in messages)
     // We'll query messages by guardian_id, but we need to get the guardian IDs first
     // Since we can't do a complex query, we'll get all messages with direction 'user_to_guardian'
@@ -745,6 +742,135 @@ class DatabaseService {
     }
     
     await _firestore.collection('messages').doc(messageId).delete();
+  }
+
+  /// Delete all messages for user (delete all messages for the current user)
+  Future<int> deleteAllMessagesForUser() async {
+    if (currentUserId == null) throw Exception('User not authenticated');
+    
+    // Get all messages for this user
+    final messagesSnapshot = await _firestore
+        .collection('messages')
+        .where('user_id', isEqualTo: currentUserId)
+        .get();
+    
+    if (messagesSnapshot.docs.isEmpty) {
+      return 0;
+    }
+    
+    // Delete in batches
+    int deletedCount = 0;
+    for (final doc in messagesSnapshot.docs) {
+      await doc.reference.delete();
+      deletedCount++;
+    }
+    
+    return deletedCount;
+  }
+
+  /// Delete a message as guardian (for messages sent to guardian)
+  Future<void> deleteMessageAsGuardian(String messageId) async {
+    final user = _auth.currentUser;
+    if (user?.email == null) throw Exception('Guardian not authenticated');
+    
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    
+    // Get the message
+    final doc = await _firestore.collection('messages').doc(messageId).get();
+    if (!doc.exists) {
+      throw Exception('Message not found');
+    }
+    
+    final data = doc.data()!;
+    
+    // Verify this is a message to guardian (direction should be 'user_to_guardian')
+    if (data['direction'] != 'user_to_guardian') {
+      throw Exception('This message is not a guardian message');
+    }
+    
+    // Get the guardian_id from the message
+    final guardianId = data['guardian_id'] as String?;
+    if (guardianId == null) {
+      throw Exception('Guardian ID not found in message');
+    }
+    
+    // Verify the guardian link belongs to this guardian
+    final guardianDoc = await _firestore.collection('guardians').doc(guardianId).get();
+    if (!guardianDoc.exists) {
+      throw Exception('Guardian link not found');
+    }
+    
+    final guardianData = guardianDoc.data()!;
+    if (guardianData['guardian_email'] != normalizedEmail) {
+      throw Exception('You can only delete messages sent to you');
+    }
+    
+    await _firestore.collection('messages').doc(messageId).delete();
+  }
+
+  /// Delete all messages for guardian (delete all messages sent to this guardian)
+  Future<int> deleteAllMessagesAsGuardian() async {
+    final user = _auth.currentUser;
+    if (user?.email == null) throw Exception('Guardian not authenticated');
+    
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    
+    // Get all guardian links for this guardian
+    final guardiansSnapshot = await _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: normalizedEmail)
+        .get();
+    
+    if (guardiansSnapshot.docs.isEmpty) {
+      return 0;
+    }
+    
+    final guardianIds = guardiansSnapshot.docs.map((doc) => doc.id).toList();
+    
+    // Get all messages sent to this guardian
+    int deletedCount = 0;
+    for (final guardianId in guardianIds) {
+      final messagesSnapshot = await _firestore
+          .collection('messages')
+          .where('guardian_id', isEqualTo: guardianId)
+          .where('direction', isEqualTo: 'user_to_guardian')
+          .get();
+      
+      // Delete in batches
+      for (final doc in messagesSnapshot.docs) {
+        await doc.reference.delete();
+        deletedCount++;
+      }
+    }
+    
+    return deletedCount;
+  }
+
+  /// Unlink a user from guardian (guardian removes the link)
+  Future<void> unlinkUserAsGuardian(String userId) async {
+    final user = _auth.currentUser;
+    if (user?.email == null) throw Exception('Guardian not authenticated');
+    
+    // Normalize email to lowercase for consistent matching
+    final normalizedEmail = user!.email!.trim().toLowerCase();
+    
+    // Find the guardian link
+    final guardiansSnapshot = await _firestore
+        .collection('guardians')
+        .where('guardian_email', isEqualTo: normalizedEmail)
+        .where('user_id', isEqualTo: userId)
+        .get();
+    
+    if (guardiansSnapshot.docs.isEmpty) {
+      throw Exception('Guardian link not found');
+    }
+    
+    // Delete all guardian links for this user-guardian relationship
+    for (final doc in guardiansSnapshot.docs) {
+      await doc.reference.delete();
+    }
   }
 
   // ========== EMERGENCY ALERT OPERATIONS ==========

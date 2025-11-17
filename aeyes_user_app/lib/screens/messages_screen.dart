@@ -69,12 +69,34 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Future<void> _deleteMessage(String messageId) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
     // Show confirmation dialog
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Message'),
-        content: const Text('Are you sure you want to delete this message? This action cannot be undone.'),
+        title: Text('Delete Message', style: titleStyle),
+        content: Text(
+          'Are you sure you want to delete this message? This action cannot be undone.',
+          style: contentStyle,
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -115,6 +137,74 @@ class _MessagesScreenState extends State<MessagesScreen> {
     }
   }
 
+  Future<void> _deleteAllMessages() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete All Messages', style: titleStyle),
+        content: Text(
+          'Are you sure you want to delete all messages? This action cannot be undone.',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final deletedCount = await _databaseService.deleteAllMessagesForUser();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Deleted $deletedCount message${deletedCount != 1 ? 's' : ''}'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('Error deleting all messages: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting messages: ${e.toString()}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -140,6 +230,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
         appBar: AppBar(
           title: const Text('Messages from Guardians'),
           actions: [
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              onPressed: _deleteAllMessages,
+              tooltip: 'Delete All',
+            ),
             IconButton(
               icon: const Icon(Icons.refresh),
               onPressed: () {
@@ -217,7 +312,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
                   ? isReadValue 
                   : (isReadValue is int ? isReadValue != 0 : false);
               final createdAt = data['created_at'];
-              final guardianId = data['guardian_id'] as String? ?? '';
 
               // Only show messages from guardians
               if (direction != 'guardian_to_user') {

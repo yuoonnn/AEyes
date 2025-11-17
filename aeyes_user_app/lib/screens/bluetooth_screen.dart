@@ -123,32 +123,47 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
 
     await _ttsService.speak(message);
 
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: Colors.white,
-        title: const Text(
+        title: Text(
           "Bluetooth Notice",
-          style: TextStyle(
-            color: Colors.black87,
-            fontWeight: FontWeight.bold,
-          ),
+          style: titleStyle,
         ),
         content: Text(
           message,
-          style: const TextStyle(
-            color: Colors.black87,
-          ),
+          style: contentStyle,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            style: TextButton.styleFrom(
+              foregroundColor: theme.colorScheme.primary,
+            ),
+            child: Text(
               "OK",
-              style: TextStyle(
-                color: Colors.green,
-                fontWeight: FontWeight.w600,
-              ),
+              style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
             ),
           ),
         ],

@@ -1,0 +1,126 @@
+@startuml DFD Level 1 - AEyes System Decomposition
+!theme plain
+skinparam componentStyle rectangle
+skinparam linetype ortho
+skinparam database {
+    BackgroundColor lightblue
+}
+
+title DFD Level 1 - AEyes System Decomposition
+
+' External Entities
+rectangle "User\n(Visually Impaired)" as User
+rectangle "Guardian\n(Caregiver)" as Guardian
+rectangle "ESP32 Device\n(Smart Glasses)" as ESP32
+cloud "OpenAI API\n(AI Service)" as OpenAI
+cloud "SMS Service\n(Emergency Notifications)" as SMS
+cloud "GPS Service\n(Location Services)" as GPS
+
+' Main Processes
+package "AEyes System" {
+    component "1.0\nAuthenticate\n& Register Users" as P1
+    component "2.0\nManage Device\nConnection" as P2
+    component "3.0\nProcess Images\n& AI Analysis" as P3
+    component "4.0\nProcess Voice\nCommands" as P4
+    component "5.0\nTrack Location" as P5
+    component "6.0\nManage Messages" as P6
+    component "7.0\nHandle Emergency\nAlerts" as P7
+    component "8.0\nManage Settings" as P8
+}
+
+' Data Stores
+database "D1: Users" as D1
+database "D2: Devices" as D2
+database "D3: Detection\nEvents" as D3
+database "D4: AI State" as D4
+database "D5: Locations" as D5
+database "D6: Messages" as D6
+database "D7: Emergency\nAlerts" as D7
+database "D8: Settings" as D8
+database "D9: Guardians" as D9
+
+' External Entity to Process Flows
+User --> P1 : User credentials\nRegistration data
+P1 --> User : Authentication status
+User --> P2 : Device scan requests\nConnection requests
+P2 --> User : Device list\nConnection status
+User --> P3 : Analysis requests
+P3 --> User : Analysis results\n(via notifications)
+User --> P4 : Voice commands\n(via phone)
+P4 --> User : TTS audio\nRecording status
+User --> P5 : Location requests
+P5 --> User : Current location
+User --> P6 : Messages\nMessage responses
+P6 --> User : Messages\nMessage notifications
+User --> P7 : Emergency triggers
+P7 --> User : Alert status
+User --> P8 : Settings changes\nSettings requests
+P8 --> User : Settings confirmation
+
+Guardian --> P1 : Guardian credentials\nRegistration data
+P1 --> Guardian : Authentication status
+Guardian --> P6 : Messages to user
+P6 --> Guardian : Messages\nUser location updates\nEmergency alerts\nUser status\nDetection events
+
+ESP32 --> P2 : Captured images\nButton events\nVoice audio\nBattery status\nDevice status
+P2 --> ESP32 : Image capture requests\nAudio output (TTS)\nControl commands\nConnection status
+
+OpenAI --> P3 : Image analysis results\nText descriptions
+P3 --> OpenAI : Image data\nAnalysis prompts
+
+SMS --> P7 : SMS delivery status
+P7 --> SMS : Emergency alert messages\nLocation notifications
+
+GPS --> P5 : GPS coordinates
+P5 --> GPS : Location requests
+
+' Process to Data Store Flows
+P1 --> D1 : User profile data\nGuardian profile data
+D1 --> P1 : User profiles\nGuardian profiles
+D1 --> P6 : User profiles
+D1 --> P7 : User profiles
+
+P2 --> D2 : Device information\nBattery updates
+D2 --> P2 : Device information
+
+P3 --> D3 : Detection events
+D3 --> P6 : Detection events
+P3 --> D4 : Analysis text
+D4 --> P3 : Analysis text
+
+P5 --> D5 : Location data
+D5 --> P6 : Location data
+D5 --> P7 : Location data
+
+P6 --> D6 : Message data
+D6 --> P6 : Messages
+
+P7 --> D7 : Emergency alerts
+D7 --> P6 : Emergency alerts
+D7 --> P7 : Emergency alerts
+
+P8 --> D8 : Settings data
+D8 --> P8 : Settings data
+D8 --> P4 : TTS settings
+D8 --> P5 : Location sharing settings
+
+P1 --> D9 : Guardian links
+D9 --> P6 : Guardian information
+D9 --> P7 : Guardian information
+
+' Inter-Process Flows
+P2 --> P3 : Image data
+P2 --> P4 : Voice audio\nButton events
+P3 --> P4 : Analysis results (for TTS)
+P4 --> P3 : Voice prompts\nTranscribed text
+P5 --> P6 : Location updates
+P5 --> P4 : Location callouts (for TTS)
+P6 --> P4 : Messages (for auto TTS)
+P2 --> P7 : Battery low alerts\nDevice disconnect alerts
+P5 --> P7 : Location data
+P8 --> P4 : TTS preferences
+P8 --> P5 : Location sharing preferences
+
+@enduml
+
+

@@ -78,6 +78,126 @@ class _GuardianMessagesScreenState extends State<GuardianMessagesScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Message', style: titleStyle),
+        content: Text(
+          'Are you sure you want to delete this message?',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      await _databaseService.deleteMessageAsGuardian(messageId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Message deleted')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting message: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAllMessages() async {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle = theme.textTheme.titleLarge?.copyWith(
+          color: theme.colorScheme.onSurface,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: theme.colorScheme.onSurface,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle = theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete All Messages', style: titleStyle),
+        content: Text(
+          'Are you sure you want to delete all SMS alerts? This action cannot be undone.',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    try {
+      final deletedCount = await _databaseService.deleteAllMessagesAsGuardian();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Deleted $deletedCount message${deletedCount != 1 ? 's' : ''}')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error deleting messages: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -94,6 +214,11 @@ class _GuardianMessagesScreenState extends State<GuardianMessagesScreen> {
           ],
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.delete_sweep),
+            onPressed: _deleteAllMessages,
+            tooltip: 'Delete All',
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
@@ -198,7 +323,6 @@ class _GuardianMessagesScreenState extends State<GuardianMessagesScreen> {
                   ? isReadValue 
                   : (isReadValue is int ? isReadValue != 0 : false);
               final createdAt = data['created_at'];
-              final userId = data['user_id'] as String? ?? '';
               
               // Get user name from userId (we'll show it if available)
               String userName = 'User';
@@ -252,16 +376,27 @@ class _GuardianMessagesScreenState extends State<GuardianMessagesScreen> {
                       ),
                     ],
                   ),
-                  trailing: !isRead
-                      ? Container(
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (!isRead)
+                        Container(
                           width: 12,
                           height: 12,
                           decoration: const BoxDecoration(
                             color: Colors.orange,
                             shape: BoxShape.circle,
                           ),
-                        )
-                      : null,
+                        ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.delete_outline, size: 20),
+                        color: Colors.red,
+                        onPressed: () => _deleteMessage(messageId),
+                        tooltip: 'Delete',
+                      ),
+                    ],
+                  ),
                   isThreeLine: true,
                 ),
               );

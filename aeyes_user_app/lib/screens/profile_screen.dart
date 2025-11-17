@@ -605,7 +605,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               child: ListTile(
                                 leading: const Icon(Icons.person, color: Color(0xFF388E3C)),
                                 title: Text(guardian['guardian_name'] ?? 'Unknown'),
-                                subtitle: Text(guardian['guardian_email'] ?? ''),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(guardian['guardian_email'] ?? ''),
+                                    if (guardian['phone'] != null && (guardian['phone'] as String).isNotEmpty)
+                                      Padding(
+                                        padding: const EdgeInsets.only(top: 4),
+                                        child: Row(
+                                          children: [
+                                            const Icon(Icons.phone, size: 14, color: Colors.grey),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              guardian['phone'] as String,
+                                              style: const TextStyle(fontSize: 12, color: Colors.grey),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                  ],
+                                ),
                                 trailing: Row(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
@@ -628,6 +647,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                     ),
                                   ],
                                 ),
+                                isThreeLine: guardian['phone'] != null && (guardian['phone'] as String).isNotEmpty,
                               ),
                             )),
                           if (successMessage != null) ...[
