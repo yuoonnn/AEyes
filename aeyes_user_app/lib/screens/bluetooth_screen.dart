@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'dart:async';
 import 'package:flutter/services.dart';
 import '../widgets/custom_button.dart';
@@ -11,6 +12,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:provider/provider.dart';
 import '../services/ai_state.dart';
+import '../services/latency_metrics_service.dart';
 
 class BluetoothScreen extends StatefulWidget {
   final AppBluetoothService bluetoothService; // Changed to AppBluetoothService
@@ -52,6 +54,12 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   StreamSubscription<String>? _logSub;
   final int _maxLogs = 500;
 
+  // Latency metrics
+  final LatencyMetricsService _latencyService =
+      LatencyMetricsService.instance;
+  StreamSubscription<List<LatencySample>>? _latencySub;
+  List<LatencySample> _latencySamples = [];
+
   @override
   void initState() {
     super.initState();
@@ -75,6 +83,14 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
         if (_logs.length > _maxLogs) {
           _logs.removeRange(0, _logs.length - _maxLogs);
         }
+      });
+    });
+
+    _latencySamples = _latencyService.history;
+    _latencySub = _latencyService.historyStream.listen((samples) {
+      if (!mounted) return;
+      setState(() {
+        _latencySamples = samples;
       });
     });
 
@@ -476,6 +492,9 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
                 const SizedBox(height: 24),
                 _buildImageProcessingCard(),
 
+                const SizedBox(height: 24),
+                _buildLatencyCard(),
+
                 // Debug Log Section
                 const SizedBox(height: 24),
                 _buildLogCard(),
@@ -558,6 +577,155 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
     );
   }
 
+  Widget _buildLatencyCard() {
+    return Card(
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '⏱️ Capture Latency (dev only)',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 12),
+            if (_latencySamples.isEmpty)
+              const Text('No capture cycles recorded yet.')
+            else ...[
+              _buildLatencySummary(_latencySamples.first),
+              const SizedBox(height: 16),
+              const Text(
+                'Recent cycles',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              ..._latencySamples.take(4).map(_buildLatencyHistoryRow),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLatencySummary(LatencySample sample) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Latest trigger: ${sample.triggerLabel}',
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildLatencyMetric(
+                label: 'Total',
+                value: _formatDuration(sample.total),
+              ),
+            ),
+            Expanded(
+              child: _buildLatencyMetric(
+                label: 'Button → Image',
+                value: _formatDuration(sample.buttonToImage),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: _buildLatencyMetric(
+                label: 'Image → AI',
+                value: _formatDuration(sample.imageToAnalysis),
+              ),
+            ),
+            Expanded(
+              child: _buildLatencyMetric(
+                label: 'AI → TTS',
+                value: _formatDuration(sample.analysisToTts),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLatencyMetric({required String label, required String value}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: Colors.grey),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildLatencyHistoryRow(LatencySample sample) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6.0),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatTime(sample.startedAt),
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+          ),
+          Expanded(
+            flex: 4,
+            child: Text(
+              sample.triggerLabel,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              _formatDuration(sample.total),
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                color: sample.status == LatencyStatus.completed
+                    ? Colors.green[700]
+                    : Colors.red[700],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration? duration) {
+    if (duration == null) return '--';
+    final ms = duration.inMilliseconds;
+    if (ms < 1000) return '${ms} ms';
+    final seconds = ms / 1000;
+    return '${seconds.toStringAsFixed(seconds >= 10 ? 1 : 2)} s';
+  }
+
+  String _formatTime(DateTime timestamp) {
+    final hours = timestamp.hour.toString().padLeft(2, '0');
+    final minutes = timestamp.minute.toString().padLeft(2, '0');
+    final seconds = timestamp.second.toString().padLeft(2, '0');
+    return '$hours:$minutes:$seconds';
+  }
+
   Widget _buildImageProcessingCard() {
     return Card(
       elevation: 2,
@@ -637,6 +805,7 @@ class _BluetoothScreenState extends State<BluetoothScreen> {
   void dispose() {
     _logSub?.cancel();
     _connSub?.cancel();
+    _latencySub?.cancel();
     super.dispose();
   }
 }

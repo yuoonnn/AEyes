@@ -10,6 +10,7 @@ import '../services/auth_service.dart';
 import '../main.dart';
 import '../models/user.dart' as app_user;
 import 'map_screen.dart';
+import 'location_history_map_screen.dart';
 import 'guardian_messages_screen.dart';
 import '../theme/app_theme.dart';
 import '../widgets/custom_textfield.dart';
@@ -44,6 +45,22 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
   Map<String, dynamic>? userLocation;
   Map<String, dynamic>? deviceStatus;
   Map<String, dynamic>? latestDetection;
+
+  // Location history (up to 30 entries)
+  List<Map<String, dynamic>> locationHistory = [];
+  bool isLoadingLocationHistory = false;
+  bool isDeletingLocationHistory = false;
+  bool _isHistoryReloading = false;
+  DateTime? _parseTimestamp(dynamic timestamp) {
+    if (timestamp == null) return null;
+    if (timestamp is Timestamp) return timestamp.toDate();
+    if (timestamp is DateTime) return timestamp;
+    try {
+      return DateTime.parse(timestamp.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
   // Stream subscriptions
   StreamSubscription<DocumentSnapshot?>? _locationSubscription;
@@ -322,6 +339,8 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                 ...snapshot.data() as Map<String, dynamic>,
               };
             });
+            // Auto-refresh history silently whenever a new location arrives
+            _reloadLocationHistory(showLoadingIndicator: false);
           }
         });
 
@@ -357,16 +376,150 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
       final detection = await _databaseService.getLatestDetectionEvent(
         selectedUserId!,
       );
+      final history = await _databaseService.getUserLocationHistory(
+        selectedUserId!,
+        limit: 30,
+      );
 
       if (mounted) {
         setState(() {
           userLocation = location;
           deviceStatus = device;
           latestDetection = detection;
+          locationHistory = history;
         });
       }
     } catch (e) {
       // Error is handled silently - data will load via streams
+    }
+  }
+
+  Future<void> _reloadLocationHistory({bool showLoadingIndicator = true}) async {
+    if (selectedUserId == null || isDeletingLocationHistory || _isHistoryReloading) {
+      return;
+    }
+    if (showLoadingIndicator) {
+      setState(() {
+        isLoadingLocationHistory = true;
+      });
+    }
+    _isHistoryReloading = true;
+    try {
+      final history = await _databaseService.getUserLocationHistory(
+        selectedUserId!,
+        limit: 30,
+      );
+      if (mounted) {
+        setState(() {
+          locationHistory = history;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error loading location history: $e'),
+          ),
+        );
+      }
+    } finally {
+      _isHistoryReloading = false;
+      if (showLoadingIndicator && mounted) {
+        setState(() {
+          isLoadingLocationHistory = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmDeleteLocationHistory() async {
+    if (selectedUserId == null) return;
+
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final titleStyle =
+        theme.textTheme.titleLarge?.copyWith(
+          color: isDark ? Colors.white : Colors.black87,
+          fontWeight: FontWeight.bold,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.white : Colors.black87,
+          fontSize: 20,
+          fontWeight: FontWeight.bold,
+        );
+    final contentStyle =
+        theme.textTheme.bodyMedium?.copyWith(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+        ) ??
+        TextStyle(
+          color: isDark ? Colors.grey[300] : Colors.black87,
+          fontSize: 16,
+        );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Delete Location History', style: titleStyle),
+        content: Text(
+          'This will delete all stored locations for this user. This action cannot be undone.\n\nDo you want to continue?',
+          style: contentStyle,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _deleteLocationHistory();
+    }
+  }
+
+  Future<void> _deleteLocationHistory() async {
+    if (selectedUserId == null) return;
+    setState(() {
+      isDeletingLocationHistory = true;
+    });
+    try {
+      final deletedCount = await _databaseService.deleteUserLocationHistory(
+        selectedUserId!,
+      );
+      if (mounted) {
+        setState(() {
+          locationHistory = [];
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              deletedCount > 0
+                  ? 'Location history deleted.'
+                  : 'No location history to delete.',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error deleting location history: $e'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          isDeletingLocationHistory = false;
+        });
+      }
     }
   }
 
@@ -505,6 +658,62 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
     } catch (e) {
       return l10n?.unknown ?? 'Unknown';
     }
+  }
+
+  /// Get day number (1 = today, 2 = yesterday, 3 = 2 days ago)
+  int? _getDayNumber(DateTime? date) {
+    if (date == null) return null;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final locationDate = DateTime(date.year, date.month, date.day);
+    final difference = today.difference(locationDate).inDays;
+    
+    if (difference == 0) return 1; // Today
+    if (difference == 1) return 2; // Yesterday
+    if (difference == 2) return 3; // 2 days ago
+    return null; // Older than 3 days (shouldn't happen with auto-cleanup)
+  }
+
+  /// Format day label
+  String _formatDayLabel(int dayNumber) {
+    switch (dayNumber) {
+      case 1:
+        return 'Day 1 (Today)';
+      case 2:
+        return 'Day 2 (Yesterday)';
+      case 3:
+        return 'Day 3 (2 days ago)';
+      default:
+        return 'Day $dayNumber';
+    }
+  }
+
+  /// Group locations by day
+  Map<int, List<Map<String, dynamic>>> _groupLocationsByDay(
+      List<Map<String, dynamic>> locations) {
+    final grouped = <int, List<Map<String, dynamic>>>{};
+    
+    for (final location in locations) {
+      final timestamp = location['timestamp'];
+      final date = _parseTimestamp(timestamp);
+      final dayNumber = _getDayNumber(date);
+      
+      if (dayNumber != null) {
+        if (!grouped.containsKey(dayNumber)) {
+          grouped[dayNumber] = [];
+        }
+        grouped[dayNumber]!.add(location);
+      }
+    }
+    
+    // Sort days in ascending order (Day 1, Day 2, Day 3)
+    final sortedKeys = grouped.keys.toList()..sort();
+    final sortedMap = <int, List<Map<String, dynamic>>>{};
+    for (final key in sortedKeys) {
+      sortedMap[key] = grouped[key]!;
+    }
+    
+    return sortedMap;
   }
 
   Widget _buildGuidanceManualCard() {
@@ -917,6 +1126,7 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                                   userLocation = null;
                                   deviceStatus = null;
                                   latestDetection = null;
+                                  locationHistory = [];
                                 });
                                 _startRealTimeListeners();
                               }
@@ -1180,6 +1390,234 @@ class _GuardianDashboardScreenState extends State<GuardianDashboardScreen> {
                         );
                       }
                     },
+                  ),
+                ),
+                SizedBox(height: AppTheme.spacingLG),
+
+                // Location History (up to 30 entries)
+                Card(
+                  elevation: AppTheme.elevationMedium,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: AppTheme.borderRadiusMD,
+                  ),
+                  child: Padding(
+                    padding: AppTheme.paddingMD,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                'Location History',
+                                style: AppTheme.textStyleBodyLarge.copyWith(
+                                  fontWeight: AppTheme.fontWeightBold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (isLoadingLocationHistory)
+                                  const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child:
+                                        CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                else
+                                  IconButton(
+                                    icon: const Icon(Icons.refresh),
+                                    tooltip: 'Refresh history',
+                                    onPressed: selectedUserId == null
+                                        ? null
+                                        : _reloadLocationHistory,
+                                  ),
+                                const SizedBox(width: 4),
+                                if (isDeletingLocationHistory)
+                                  const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child:
+                                        CircularProgressIndicator(strokeWidth: 2),
+                                  )
+                                else
+                                  IconButton(
+                                    icon: const Icon(
+                                      Icons.delete_forever,
+                                      color: Colors.red,
+                                    ),
+                                    tooltip: 'Delete location history',
+                                    onPressed: (selectedUserId == null ||
+                                            locationHistory.isEmpty)
+                                        ? null
+                                        : _confirmDeleteLocationHistory,
+                                  ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: AppTheme.spacingSM),
+                        Text(
+                          'Shows location history from the last 3 days (up to 30 most recent entries). Older locations are automatically deleted.',
+                          style: AppTheme.textStyleCaption.copyWith(
+                            color: AppTheme.textSecondary,
+                          ),
+                        ),
+                        SizedBox(height: AppTheme.spacingMD),
+                        if (isLoadingLocationHistory)
+                          const Center(
+                            child: CircularProgressIndicator(),
+                          )
+                        else if (locationHistory.isEmpty)
+                          Text(
+                            'No location history available.',
+                            style: AppTheme.textStyleBody.copyWith(
+                              color: AppTheme.textSecondary,
+                            ),
+                          )
+                        else
+                          SizedBox(
+                            height: 250,
+                            child: Scrollbar(
+                              thumbVisibility: true,
+                              child: Builder(
+                                builder: (context) {
+                                  final groupedLocations =
+                                      _groupLocationsByDay(locationHistory);
+                                  final dayKeys = groupedLocations.keys.toList();
+                                  
+                                  if (dayKeys.isEmpty) {
+                                    return Center(
+                                      child: Text(
+                                        'No location history available.',
+                                        style: AppTheme.textStyleBody.copyWith(
+                                          color: AppTheme.textSecondary,
+                                        ),
+                                      ),
+                                    );
+                                  }
+                                  
+                                  return ListView.builder(
+                                    itemCount: dayKeys.length,
+                                    itemBuilder: (context, dayIndex) {
+                                      final dayNumber = dayKeys[dayIndex];
+                                      final dayLocations =
+                                          groupedLocations[dayNumber]!;
+                                      
+                                      return Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          // Day header
+                                          Padding(
+                                            padding: EdgeInsets.only(
+                                              top: dayIndex > 0
+                                                  ? AppTheme.spacingMD
+                                                  : 0,
+                                              bottom: AppTheme.spacingSM,
+                                              left: AppTheme.spacingMD,
+                                              right: AppTheme.spacingMD,
+                                            ),
+                                            child: Row(
+                                              children: [
+                                                Icon(
+                                                  Icons.calendar_today,
+                                                  size: 18,
+                                                  color: AppTheme.primaryGreen,
+                                                ),
+                                                SizedBox(
+                                                    width: AppTheme.spacingSM),
+                                                Text(
+                                                  _formatDayLabel(dayNumber),
+                                                  style: AppTheme.textStyleBody
+                                                      .copyWith(
+                                                    fontWeight:
+                                                        AppTheme.fontWeightBold,
+                                                    color: AppTheme.primaryGreen,
+                                                  ),
+                                                ),
+                                                SizedBox(
+                                                    width: AppTheme.spacingSM),
+                                                Text(
+                                                  '(${dayLocations.length} ${dayLocations.length == 1 ? 'location' : 'locations'})',
+                                                  style: AppTheme.textStyleCaption
+                                                      .copyWith(
+                                                    color:
+                                                        AppTheme.textSecondary,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          // Locations for this day
+                                          ...dayLocations.map((entry) {
+                                            final timestamp = entry['timestamp'];
+                                            final address =
+                                                entry['address'] as String?;
+                                            final latitude = (entry['latitude']
+                                                    as num?)
+                                                ?.toDouble();
+                                            final longitude = (entry['longitude']
+                                                    as num?)
+                                                ?.toDouble();
+
+                                            final title = address != null &&
+                                                    address.trim().isNotEmpty
+                                                ? address
+                                                : (latitude != null &&
+                                                        longitude != null)
+                                                    ? 'Lat: ${latitude.toStringAsFixed(5)}, '
+                                                        'Lng: ${longitude.toStringAsFixed(5)}'
+                                                    : 'Unknown location';
+
+                                            return ListTile(
+                                              leading: const Icon(
+                                                Icons.location_history,
+                                                color: AppTheme.info,
+                                              ),
+                                              title: Text(
+                                                title,
+                                                maxLines: 2,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                              subtitle: Text(
+                                                _formatTimestamp(timestamp),
+                                              ),
+                                              onTap: (latitude != null &&
+                                                      longitude != null)
+                                                  ? () {
+                                                      Navigator.push(
+                                                        context,
+                                                        MaterialPageRoute(
+                                                          builder: (context) =>
+                                                              LocationHistoryMapScreen(
+                                                            latitude: latitude!,
+                                                            longitude:
+                                                                longitude!,
+                                                            address: address,
+                                                            timestamp:
+                                                                _parseTimestamp(
+                                                                    timestamp),
+                                                          ),
+                                                        ),
+                                                      );
+                                                    }
+                                                  : null,
+                                            );
+                                          }),
+                                        ],
+                                      );
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 SizedBox(height: AppTheme.spacingLG),

@@ -200,6 +200,7 @@ class DatabaseService {
   // ========== LOCATION OPERATIONS ==========
   
   /// Save user location
+  /// Automatically deletes locations older than 3 days to maintain a 3-day history
   Future<void> saveLocation({
     required double latitude,
     required double longitude,
@@ -221,6 +222,33 @@ class DatabaseService {
       'landmark': landmark,
       'timestamp': FieldValue.serverTimestamp(),
     });
+    
+    // Automatically clean up locations older than 3 days
+    await _cleanupOldLocations();
+  }
+  
+  /// Delete locations older than 3 days for the current user
+  /// This maintains a rolling 3-day history window
+  Future<void> _cleanupOldLocations() async {
+    if (currentUserId == null) return;
+    
+    try {
+      // Calculate cutoff date: 3 days ago
+      final cutoffDate = DateTime.now().subtract(const Duration(days: 3));
+      final cutoffTimestamp = Timestamp.fromDate(cutoffDate);
+      
+      // Query for locations older than 3 days
+      final oldLocationsQuery = _firestore
+          .collection('locations')
+          .where('user_id', isEqualTo: currentUserId)
+          .where('timestamp', isLessThan: cutoffTimestamp);
+      
+      // Delete in batches to avoid timeouts
+      await _deleteQueryBatch(oldLocationsQuery);
+    } catch (e) {
+      // Log error but don't throw - location saving should still succeed
+      print('Error cleaning up old locations: $e');
+    }
   }
 
   // ========== DETECTION EVENT OPERATIONS ==========
@@ -552,6 +580,61 @@ class DatabaseService {
         .limit(1)
         .snapshots()
         .map((snapshot) => snapshot.docs.isNotEmpty ? snapshot.docs.first : null);
+  }
+
+  /// Get recent location history for a user (up to [limit] entries)
+  Future<List<Map<String, dynamic>>> getUserLocationHistory(
+    String userId, {
+    int limit = 30,
+  }) async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('user_id', isEqualTo: userId)
+        .orderBy('timestamp', descending: true)
+        .limit(limit)
+        .get();
+
+    if (snapshot.docs.isEmpty) return [];
+
+    return snapshot.docs
+        .map(
+          (doc) => {
+            'location_id': doc.id,
+            ...doc.data(),
+          },
+        )
+        .toList();
+  }
+
+  /// Delete all stored locations for a specific user.
+  /// Returns the number of deleted location records.
+  Future<int> deleteUserLocationHistory(String userId) async {
+    final snapshot = await _firestore
+        .collection('locations')
+        .where('user_id', isEqualTo: userId)
+        .get();
+
+    if (snapshot.docs.isEmpty) {
+      return 0;
+    }
+
+    // Delete in batches to avoid timeouts
+    int deletedCount = 0;
+    const batchSize = 50;
+    var docs = List<QueryDocumentSnapshot>.from(snapshot.docs);
+
+    while (docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      final slice = docs.take(batchSize).toList();
+      for (final doc in slice) {
+        batch.delete(doc.reference);
+        deletedCount++;
+      }
+      await batch.commit();
+      docs = docs.skip(slice.length).toList();
+    }
+
+    return deletedCount;
   }
 
   /// Get alerts for a user

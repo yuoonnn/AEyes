@@ -25,6 +25,7 @@ import 'services/openai_service.dart';
 import 'services/language_service.dart';
 import 'services/foreground_service.dart';
 import 'services/notification_service.dart';
+import 'services/latency_metrics_service.dart';
 import 'services/ai_state.dart';
 import 'services/tts_service.dart';
 import 'services/speech_service.dart';
@@ -70,13 +71,14 @@ void main() async {
   const openAiKey = String.fromEnvironment(
     'OPENAI_API_KEY',
     defaultValue:
-        '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',
+        '',
   );
   final openAIService = OpenAIService(openAiKey);
 
   final languageService = LanguageService();
   final aiState = AIState();
   final ttsService = TTSService();
+  final latencyService = LatencyMetricsService.instance;
 
   // Speech service - for recording audio when ESP32 button is pressed
   SpeechService? speechService;
@@ -242,6 +244,9 @@ void main() async {
       case '0':
       case 'capture':
         // Trigger image capture/analysis
+        latencyService.startCycle(
+          triggerLabel: 'Button $buttonId${event != null ? ' ($event)' : ''}',
+        );
         if (ttsService != null) {
           try {
             await ttsService.stop(); // Stop any ongoing TTS first
@@ -268,6 +273,9 @@ void main() async {
         // Button 2: Capture / Auto-scan toggle
         if (event == 'CAPTURE') {
           // Short press: Request image capture
+          latencyService.startCycle(
+            triggerLabel: 'Button $buttonId ($event)',
+          );
           if (ttsService != null) {
             try {
               await ttsService.stop(); // Stop any ongoing TTS first
@@ -307,6 +315,7 @@ void main() async {
     bluetoothService.log(
       '🖼️ (global) onImageReceived (${bytes.length} bytes) → OpenAI',
     );
+    latencyService.markImageReceived(byteLength: bytes.length);
 
     // Check if we have a recent voice command (within last 5 seconds)
     String? voicePrompt;
@@ -347,6 +356,7 @@ void main() async {
 
     try {
       final text = await openAIService.analyzeImage(bytes, prompt: voicePrompt);
+      latencyService.markAnalysisComplete();
       aiState.setAnalysis(text);
       NotificationService.showSimple(
         id: 1001,
@@ -356,10 +366,12 @@ void main() async {
       // Auto TTS the analysis
       try {
         await ttsService.stop();
+        latencyService.markTtsStarted(ttsPreview: text);
         await ttsService.speak(text);
       } catch (_) {}
     } catch (e) {
       bluetoothService.log('❌ Global analysis error: $e');
+      latencyService.cancelActive('openai_error');
     }
   };
 
